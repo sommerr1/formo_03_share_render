@@ -5,8 +5,7 @@ import { GlbViewer } from "../viewer/GlbViewer.js";
 
 type LoadState =
   | { kind: "loading" }
-  | { kind: "expired" }
-  | { kind: "missing" }
+  | { kind: "notFound" }
   | { kind: "error"; message: string }
   | { kind: "ready"; url: string; overlay: ShareOverlayV1 | null };
 
@@ -16,7 +15,7 @@ export function ViewerPage() {
 
   useEffect(() => {
     if (!token) {
-      setState({ kind: "missing" });
+      setState({ kind: "notFound" });
       return;
     }
 
@@ -28,7 +27,7 @@ export function ViewerPage() {
       try {
         const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`);
         if (metaRes.status === 404) {
-          if (!revoked) setState({ kind: "expired" });
+          if (!revoked) setState({ kind: "notFound" });
           return;
         }
         if (!metaRes.ok) {
@@ -39,7 +38,7 @@ export function ViewerPage() {
           `/api/models/${encodeURIComponent(token)}/file`,
         );
         if (fileRes.status === 404) {
-          if (!revoked) setState({ kind: "expired" });
+          if (!revoked) setState({ kind: "notFound" });
           return;
         }
         if (!fileRes.ok) {
@@ -82,17 +81,10 @@ export function ViewerPage() {
     switch (state.kind) {
       case "loading":
         return <p className="status">Загрузка модели…</p>;
-      case "expired":
+      case "notFound":
         return (
           <div className="status status--warn">
-            <h1>Ссылка истекла</h1>
-            <p>Модель удалена или срок доступа закончился.</p>
-          </div>
-        );
-      case "missing":
-        return (
-          <div className="status status--warn">
-            <h1>Не найдено</h1>
+            <h1>404</h1>
           </div>
         );
       case "error":

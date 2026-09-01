@@ -5,7 +5,6 @@ import {
   CHUNK_SIZE_BYTES,
   getUploadSession,
   putUploadPart,
-  putUploadSession,
 } from "../lib/store.js";
 import { parseToken } from "../lib/tokens.js";
 
@@ -35,12 +34,8 @@ export default async (req: Request, context: Context) => {
   }
 
   await putUploadPart(token, index, data);
-  const received = session.received.includes(index)
-    ? session.received
-    : [...session.received, index].sort((a, b) => a - b);
-  await putUploadSession(token, { ...session, received });
 
-  return json({ ok: true, index, received: received.length });
+  return json({ ok: true, index });
 };
 
 export const config: Config = {

@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
+import { NotFoundPage } from "./NotFoundPage.js";
 
 type LoadState =
   | { kind: "loading" }
@@ -81,12 +82,6 @@ export function ViewerPage() {
     switch (state.kind) {
       case "loading":
         return <p className="status">Загрузка модели…</p>;
-      case "notFound":
-        return (
-          <div className="status status--warn">
-            <h1>404</h1>
-          </div>
-        );
       case "error":
         return (
           <div className="status status--warn">
@@ -102,6 +97,8 @@ export function ViewerPage() {
         );
     }
   }, [state]);
+
+  if (state.kind === "notFound") return <NotFoundPage />;
 
   return <main className="page page--viewer">{body}</main>;
 }

@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
 
 type LoadState =
@@ -7,7 +8,7 @@ type LoadState =
   | { kind: "expired" }
   | { kind: "missing" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; url: string };
+  | { kind: "ready"; url: string; overlay: ShareOverlayV1 | null };
 
 export function ViewerPage() {
   const { token } = useParams();
@@ -47,7 +48,20 @@ export function ViewerPage() {
 
         const blob = await fileRes.blob();
         objectUrl = URL.createObjectURL(blob);
-        if (!revoked) setState({ kind: "ready", url: objectUrl });
+
+        let overlay: ShareOverlayV1 | null = null;
+        const overlayRes = await fetch(
+          `/api/models/${encodeURIComponent(token)}/overlay`,
+        );
+        if (overlayRes.ok) {
+          try {
+            overlay = parseShareOverlay(await overlayRes.json());
+          } catch {
+            overlay = null;
+          }
+        }
+
+        if (!revoked) setState({ kind: "ready", url: objectUrl, overlay });
       } catch (err) {
         if (!revoked) {
           setState({
@@ -91,7 +105,7 @@ export function ViewerPage() {
       case "ready":
         return (
           <Suspense fallback={<p className="status">Подготовка сцены…</p>}>
-            <GlbViewer url={state.url} />
+            <GlbViewer url={state.url} overlay={state.overlay} />
           </Suspense>
         );
     }

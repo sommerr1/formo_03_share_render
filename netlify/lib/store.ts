@@ -22,6 +22,10 @@ function metaKey(token: string): string {
   return `${token}.meta.json`;
 }
 
+function overlayKey(token: string): string {
+  return `${token}.overlay.json`;
+}
+
 function partKey(token: string, index: number): string {
   return `${token}.part.${index}`;
 }
@@ -174,10 +178,28 @@ export async function getRenderGlb(token: string): Promise<ArrayBuffer | null> {
   return store.get(glbKey(token), { type: "arrayBuffer" });
 }
 
+export async function getRenderOverlay(
+  token: string,
+): Promise<string | null> {
+  const store = renderStore();
+  return store.get(overlayKey(token), { type: "text" });
+}
+
+export async function putRenderOverlay(
+  token: string,
+  json: string,
+): Promise<void> {
+  const store = renderStore();
+  await store.set(overlayKey(token), json, {
+    metadata: { contentType: "application/json" },
+  });
+}
+
 export async function deleteRender(token: string): Promise<void> {
   const store = renderStore();
   await store.delete(glbKey(token));
   await store.delete(metaKey(token));
+  await store.delete(overlayKey(token));
   await deleteUploadArtifacts(token);
 }
 

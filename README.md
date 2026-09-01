@@ -23,6 +23,8 @@
 | PATCH | `/api/models/:token` | Bearer | `{ expiresAt }` |
 | DELETE | `/api/models/:token` | Bearer | удалить модель |
 | GET | `/api/models/:token/file` | — | GLB binary |
+| GET | `/api/models/:token/overlay` | — | dims + anim JSON (404 если нет) |
+| PUT | `/api/models/:token/overlay` | Bearer | sidecar v1 после upload |
 
 Viewer: `/v/:token` — **32-символьный** код в URL, доступен всем, у кого есть ссылка.
 

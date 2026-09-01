@@ -47,11 +47,62 @@ body,
   background: #000;
 }
 
-.viewer-canvas > div {
+.viewer-canvas > div:not(.viewer-toolbar) {
   position: absolute !important;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
+}
+
+.viewer-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.viewer-toolbar button {
+  appearance: none;
+  border: 1px solid #3a3a3a;
+  background: #141414;
+  color: #e8eaed;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-toolbar button.is-active {
+  border-color: #8ab4f8;
+  background: #1b2a40;
+}
+
+.share-dim {
+  padding: 0.08rem 0.32rem;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+  background: rgba(18, 22, 30, 0.84);
+  border: 1px solid #94a3b8;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.share-dim--zone {
+  border-color: #fbbf24;
+  color: #fde68a;
+}
+
+.share-dim--facade {
+  border-color: #fb923c;
+  color: #fdba74;
 }
 
 .status {

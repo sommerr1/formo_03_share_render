@@ -1,0 +1,30 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/upload"
+  to = "/.netlify/functions/upload"
+  status = 200
+
+[[redirects]]
+  from = "/api/models/:token/file"
+  to = "/.netlify/functions/model-file/:token"
+  status = 200
+
+[[redirects]]
+  from = "/api/models/:token"
+  to = "/.netlify/functions/model/:token"
+  status = 200
+
+[[redirects]]
+  from = "/v/*"
+  to = "/index.html"
+  status = 200
+
+[functions."purge-scheduled"]
+  schedule = "@daily"

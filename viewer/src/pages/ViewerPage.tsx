@@ -1,0 +1,101 @@
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { GlbViewer } from "../viewer/GlbViewer.js";
+
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "expired" }
+  | { kind: "missing" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; url: string };
+
+export function ViewerPage() {
+  const { token } = useParams();
+  const [state, setState] = useState<LoadState>({ kind: "loading" });
+
+  useEffect(() => {
+    if (!token) {
+      setState({ kind: "missing" });
+      return;
+    }
+
+    let revoked = false;
+    let objectUrl: string | null = null;
+
+    (async () => {
+      setState({ kind: "loading" });
+      try {
+        const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`);
+        if (metaRes.status === 404) {
+          if (!revoked) setState({ kind: "expired" });
+          return;
+        }
+        if (!metaRes.ok) {
+          throw new Error(`meta ${metaRes.status}`);
+        }
+
+        const fileRes = await fetch(
+          `/api/models/${encodeURIComponent(token)}/file`,
+        );
+        if (fileRes.status === 404) {
+          if (!revoked) setState({ kind: "expired" });
+          return;
+        }
+        if (!fileRes.ok) {
+          throw new Error(`file ${fileRes.status}`);
+        }
+
+        const blob = await fileRes.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!revoked) setState({ kind: "ready", url: objectUrl });
+      } catch (err) {
+        if (!revoked) {
+          setState({
+            kind: "error",
+            message: err instanceof Error ? err.message : "Load failed",
+          });
+        }
+      }
+    })();
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [token]);
+
+  const body = useMemo(() => {
+    switch (state.kind) {
+      case "loading":
+        return <p className="status">Загрузка модели…</p>;
+      case "expired":
+        return (
+          <div className="status status--warn">
+            <h1>Ссылка истекла</h1>
+            <p>Модель удалена или срок доступа закончился.</p>
+          </div>
+        );
+      case "missing":
+        return (
+          <div className="status status--warn">
+            <h1>Не найдено</h1>
+          </div>
+        );
+      case "error":
+        return (
+          <div className="status status--warn">
+            <h1>Ошибка</h1>
+            <p>{state.message}</p>
+          </div>
+        );
+      case "ready":
+        return (
+          <Suspense fallback={<p className="status">Подготовка сцены…</p>}>
+            <GlbViewer url={state.url} />
+          </Suspense>
+        );
+    }
+  }, [state]);
+
+  return <main className="page page--viewer">{body}</main>;
+}

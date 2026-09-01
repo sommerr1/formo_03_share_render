@@ -24,12 +24,12 @@ export function GlbViewer({ url }: Props) {
         shadows
         dpr={[1, 2]}
         gl={{ antialias: true }}
-        style={{ width: "100%", height: "100%", display: "block" }}
+        style={{ width: "100%", height: "100%", display: "block", background: "#000" }}
       >
-        <color attach="background" args={["#eef1f4"]} />
-        <ambientLight intensity={0.55} />
-        <directionalLight castShadow intensity={1.15} position={[6, 10, 5]} />
-        <Environment preset="apartment" />
+        <color attach="background" args={["#000000"]} />
+        <ambientLight intensity={0.22} />
+        <directionalLight castShadow intensity={0.8} position={[6, 10, 5]} />
+        <Environment preset="warehouse" environmentIntensity={0.4} />
         <Model url={url} />
         <OrbitControls makeDefault enableDamping />
       </Canvas>

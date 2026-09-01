@@ -115,19 +115,12 @@ export async function assembleAndFinalizeUpload(
   const session = await getUploadSession(token);
   if (!session) throw new Error("Upload session not found");
 
-  const received = new Set(session.received);
-  for (let i = 0; i < session.totalChunks; i++) {
-    if (!received.has(i)) {
-      throw new Error(`Missing chunk ${i}`);
-    }
-  }
-
   const store = renderStore();
   const parts: ArrayBuffer[] = [];
   let totalBytes = 0;
   for (let i = 0; i < session.totalChunks; i++) {
     const buf = await store.get(partKey(token, i), { type: "arrayBuffer" });
-    if (!buf) throw new Error(`Missing chunk blob ${i}`);
+    if (!buf) throw new Error(`Missing chunk ${i}`);
     totalBytes += buf.byteLength;
     if (totalBytes > MAX_UPLOAD_BYTES) {
       throw new Error("File too large");

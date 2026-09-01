@@ -1,9 +1,9 @@
 import type { Config, Context } from "@netlify/functions";
-import { requireAdmin } from "../../lib/auth.js";
-import { json, options } from "../../lib/cors.js";
-import { siteBaseUrl } from "../../lib/meta.js";
-import { assembleAndFinalizeUpload } from "../../lib/store.js";
-import { parseToken } from "../../lib/tokens.js";
+import { requireAdmin } from "../lib/auth.js";
+import { json, options } from "../lib/cors.js";
+import { siteBaseUrl } from "../lib/meta.js";
+import { assembleAndFinalizeUpload } from "../lib/store.js";
+import { parseToken } from "../lib/tokens.js";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") return options();

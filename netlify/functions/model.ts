@@ -1,13 +1,13 @@
 import type { Config, Context } from "@netlify/functions";
-import { requireAdmin } from "../../lib/auth.js";
-import { json, options } from "../../lib/cors.js";
-import { isExpired, parseExpiresAtJson } from "../../lib/meta.js";
+import { requireAdmin } from "../lib/auth.js";
+import { json, options } from "../lib/cors.js";
+import { isExpired, parseExpiresAtJson } from "../lib/meta.js";
 import {
   deleteRender,
   getRenderMeta,
   patchRenderMeta,
-} from "../../lib/store.js";
-import { parseToken } from "../../lib/tokens.js";
+} from "../lib/store.js";
+import { parseToken } from "../lib/tokens.js";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") return options();

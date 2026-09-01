@@ -1,8 +1,8 @@
 import type { Config, Context } from "@netlify/functions";
-import { withCors } from "../../lib/cors.js";
-import { isExpired } from "../../lib/meta.js";
-import { getRenderGlb, getRenderMeta } from "../../lib/store.js";
-import { parseToken } from "../../lib/tokens.js";
+import { withCors } from "../lib/cors.js";
+import { isExpired } from "../lib/meta.js";
+import { getRenderGlb, getRenderMeta } from "../lib/store.js";
+import { parseToken } from "../lib/tokens.js";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") {

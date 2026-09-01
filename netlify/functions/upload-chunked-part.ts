@@ -1,13 +1,13 @@
 import type { Config, Context } from "@netlify/functions";
-import { requireAdmin } from "../../../lib/auth.js";
-import { json, options } from "../../../lib/cors.js";
+import { requireAdmin } from "../lib/auth.js";
+import { json, options } from "../lib/cors.js";
 import {
   CHUNK_SIZE_BYTES,
   getUploadSession,
   putUploadPart,
   putUploadSession,
-} from "../../../lib/store.js";
-import { parseToken } from "../../../lib/tokens.js";
+} from "../lib/store.js";
+import { parseToken } from "../lib/tokens.js";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") return options();

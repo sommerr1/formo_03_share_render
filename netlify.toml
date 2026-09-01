@@ -7,36 +7,6 @@
   node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/api/upload/chunked/init"
-  to = "/.netlify/functions/upload-chunked-init"
-  status = 200
-
-[[redirects]]
-  from = "/api/upload/chunked/:token/complete"
-  to = "/.netlify/functions/upload-chunked-complete/:token"
-  status = 200
-
-[[redirects]]
-  from = "/api/upload/chunked/:token/:index"
-  to = "/.netlify/functions/upload-chunked-part/:token/:index"
-  status = 200
-
-[[redirects]]
-  from = "/api/upload"
-  to = "/.netlify/functions/upload"
-  status = 200
-
-[[redirects]]
-  from = "/api/models/:token/file"
-  to = "/.netlify/functions/model-file/:token"
-  status = 200
-
-[[redirects]]
-  from = "/api/models/:token"
-  to = "/.netlify/functions/model/:token"
-  status = 200
-
-[[redirects]]
   from = "/v/*"
   to = "/index.html"
   status = 200

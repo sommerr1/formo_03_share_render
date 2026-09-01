@@ -1,6 +1,6 @@
 import type { RenderMeta } from "./types.js";
 
-const DEFAULT_TTL_DAYS = 30;
+const DEFAULT_TTL_DAYS = 3;
 
 export function defaultExpiresAt(from = new Date()): string {
   const d = new Date(from);

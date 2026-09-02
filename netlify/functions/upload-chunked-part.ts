@@ -3,7 +3,7 @@ import { requireAdmin } from "../lib/auth.js";
 import { json, options } from "../lib/cors.js";
 import {
   CHUNK_SIZE_BYTES,
-  getUploadSession,
+  waitForUploadSession,
   putUploadPart,
 } from "../lib/store.js";
 import { parseToken } from "../lib/tokens.js";
@@ -22,7 +22,7 @@ export default async (req: Request, context: Context) => {
     return json({ error: "Not found" }, 404);
   }
 
-  const session = await getUploadSession(token);
+  const session = await waitForUploadSession(token);
   if (!session) return json({ error: "Upload session not found" }, 404);
   if (index >= session.totalChunks) {
     return json({ error: "Invalid chunk index" }, 400);

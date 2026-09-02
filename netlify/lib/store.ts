@@ -113,6 +113,20 @@ export async function getUploadSession(
   }
 }
 
+export async function waitForUploadSession(
+  token: string,
+): Promise<UploadSession | null> {
+  const waitsMs = [0, 250, 500, 1000, 2000];
+  for (const wait of waitsMs) {
+    if (wait > 0) {
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+    const session = await getUploadSession(token);
+    if (session) return session;
+  }
+  return null;
+}
+
 export async function putUploadPart(
   token: string,
   index: number,
@@ -127,7 +141,7 @@ export async function putUploadPart(
 export async function assembleAndFinalizeUpload(
   token: string,
 ): Promise<RenderMeta> {
-  const session = await getUploadSession(token);
+  const session = await waitForUploadSession(token);
   if (!session) throw new Error("Upload session not found");
 
   const store = renderStore();
@@ -163,6 +177,14 @@ export async function assembleAndFinalizeUpload(
   return meta;
 }
 
+export async function deleteUploadParts(token: string): Promise<void> {
+  const store = renderStore();
+  const { blobs } = await store.list({ prefix: `${token}.part.` });
+  for (const blob of blobs) {
+    await store.delete(blob.key);
+  }
+}
+
 export async function deleteUploadArtifacts(token: string): Promise<void> {
   const store = renderStore();
   const session = await getUploadSession(token);
@@ -172,10 +194,7 @@ export async function deleteUploadArtifacts(token: string): Promise<void> {
       await store.delete(partKey(token, i));
     }
   }
-  const { blobs } = await store.list({ prefix: `${token}.part.` });
-  for (const blob of blobs) {
-    await store.delete(blob.key);
-  }
+  await deleteUploadParts(token);
 }
 
 export async function patchRenderMeta(

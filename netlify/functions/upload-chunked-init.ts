@@ -6,9 +6,10 @@ import {
   CHUNK_SIZE_BYTES,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_CHUNKS,
-  deleteUploadArtifacts,
+  deleteUploadParts,
   getRenderMeta,
   putUploadSession,
+  waitForUploadSession,
 } from "../lib/store.js";
 import { newToken, parseToken } from "../lib/tokens.js";
 
@@ -77,7 +78,6 @@ export default async (req: Request, _context: Context) => {
     if (!existingToken) return json({ error: "Invalid token" }, 400);
     const existing = await getRenderMeta(existingToken);
     if (!existing) return json({ error: "Not found" }, 404);
-    await deleteUploadArtifacts(existingToken);
     token = existingToken;
     createdAt = existing.createdAt;
   }
@@ -88,6 +88,13 @@ export default async (req: Request, _context: Context) => {
     totalChunks,
     received: [],
   });
+  const sessionReady = await waitForUploadSession(token);
+  if (!sessionReady) {
+    return json({ error: "Upload session not found" }, 503);
+  }
+  if (typeof replaceRaw === "string" && replaceRaw.trim()) {
+    await deleteUploadParts(token);
+  }
 
   return json(
     {

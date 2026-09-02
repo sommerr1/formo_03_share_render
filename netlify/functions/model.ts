@@ -1,7 +1,12 @@
 import type { Config, Context } from "@netlify/functions";
 import { requireAdmin } from "../lib/auth.js";
 import { json, options } from "../lib/cors.js";
-import { isExpired, parseExpiresAtJson } from "../lib/meta.js";
+import {
+  applyViewerToolFlags,
+  isExpired,
+  parseExpiresAtJson,
+  VIEWER_TOOL_META_KEYS,
+} from "../lib/meta.js";
 import {
   deleteRender,
   getRenderMeta,
@@ -49,38 +54,36 @@ export default async (req: Request, context: Context) => {
     if (!body || typeof body !== "object") {
       return json({ error: "Invalid JSON" }, 400);
     }
-    const patch = body as { expiresAt?: unknown; surveyEnabled?: unknown };
-    const hasExpiry = "expiresAt" in patch;
-    const hasSurvey = "surveyEnabled" in patch;
-    if (!hasExpiry && !hasSurvey) {
-      return json({ error: "expiresAt or surveyEnabled required" }, 400);
+    const rec = body as Record<string, unknown>;
+    const hasExpiry = "expiresAt" in rec;
+    const toolPatch: Partial<RenderMeta> = {};
+    for (const key of VIEWER_TOOL_META_KEYS) {
+      if (!(key in rec)) continue;
+      if (typeof rec[key] !== "boolean") {
+        return json({ error: `Invalid ${key}` }, 400);
+      }
+      toolPatch[key] = rec[key];
+    }
+    if (!hasExpiry && Object.keys(toolPatch).length === 0) {
+      return json({ error: "expiresAt or tool flags required" }, 400);
     }
 
     let expiresAt = current.expiresAt;
     if (hasExpiry) {
       try {
-        expiresAt = parseExpiresAtJson(patch.expiresAt);
+        expiresAt = parseExpiresAtJson(rec.expiresAt);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Invalid expiresAt";
         return json({ error: msg }, 400);
       }
     }
 
-    let surveyEnabled = current.surveyEnabled;
-    if (hasSurvey) {
-      if (typeof patch.surveyEnabled !== "boolean") {
-        return json({ error: "Invalid surveyEnabled" }, 400);
-      }
-      surveyEnabled = patch.surveyEnabled;
-    }
-
     const next: RenderMeta = {
       createdAt: current.createdAt,
       expiresAt,
     };
-    if (typeof surveyEnabled === "boolean") {
-      next.surveyEnabled = surveyEnabled;
-    }
+    applyViewerToolFlags(current, next);
+    applyViewerToolFlags(toolPatch, next);
     await patchRenderMeta(token, next);
 
     const surveySubmittedAt = surveySubmittedAtFromRaw(

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
-  ANNOTATE_SYMBOLS,
   AnnotateLayer,
   exportAnnotateJpeg,
   type AnnotateLayerHandle,
@@ -32,6 +31,7 @@ type Props = {
   open: boolean;
   frozen: boolean;
   glCanvasRef: RefObject<HTMLCanvasElement | null>;
+  annotateEnabled?: boolean;
 };
 
 function speechCtor(): (new () => SpeechRecognitionLike) | null {
@@ -57,13 +57,18 @@ function slotIndex(slot: SurveySlot): number {
   return SURVEY_SLOTS.indexOf(slot);
 }
 
-export function SurveyPanel({ token, open, frozen, glCanvasRef }: Props) {
+export function SurveyPanel({
+  token,
+  open,
+  frozen,
+  glCanvasRef,
+  annotateEnabled = true,
+}: Props) {
   const [form, setForm] = useState<SurveyFormDraft>(() => emptySurveyForm());
   const [slot, setSlot] = useState<SurveySlot>("dims");
   const [annot, setAnnot] = useState<AnnotateBySlot>(() => emptyAnnot());
   const [undone, setUndone] = useState<AnnotateBySlot>(() => emptyAnnot());
   const [tool, setTool] = useState<AnnotateTool>("pen");
-  const [symbol, setSymbol] = useState<string>("!");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
@@ -111,7 +116,7 @@ export function SurveyPanel({ token, open, frozen, glCanvasRef }: Props) {
     saveSurveyLocalDraft(token, { form, slot, annot });
   }, [ready, token, form, slot, annot]);
 
-  const capturing = open && frozen;
+  const capturing = open && frozen && annotateEnabled;
   const draft = formToDraft(form);
   const idx = slotIndex(slot);
   const last = idx === SURVEY_SLOTS.length - 1;
@@ -280,7 +285,7 @@ export function SurveyPanel({ token, open, frozen, glCanvasRef }: Props) {
 
   return (
     <>
-      {open ? (
+      {open && annotateEnabled ? (
         <div className="viewer-annotate" role="toolbar" aria-label="Пометки">
           <button
             type="button"
@@ -300,30 +305,6 @@ export function SurveyPanel({ token, open, frozen, glCanvasRef }: Props) {
           >
             T
           </button>
-          <button
-            type="button"
-            className={tool === "symbol" ? "is-active" : undefined}
-            title="Символ"
-            aria-pressed={tool === "symbol"}
-            onClick={() => setTool("symbol")}
-          >
-            {symbol}
-          </button>
-          {tool === "symbol"
-            ? ANNOTATE_SYMBOLS.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={symbol === g ? "is-active" : undefined}
-                  onClick={() => {
-                    setSymbol(g);
-                    setTool("symbol");
-                  }}
-                >
-                  {g}
-                </button>
-              ))
-            : null}
           <button
             type="button"
             className={tool === "erase" ? "is-active" : undefined}
@@ -357,7 +338,6 @@ export function SurveyPanel({ token, open, frozen, glCanvasRef }: Props) {
         ops={annot[slot]}
         onChange={setOps}
         tool={tool}
-        symbol={symbol}
         capturing={capturing}
         visible={open}
       />

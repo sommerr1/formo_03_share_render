@@ -9,6 +9,7 @@ import {
   type ShareOverlayV1,
 } from "./overlayTypes.js";
 import { SurveyPanel } from "./SurveyPanel.js";
+import type { ShareViewerTools } from "./viewerTools.js";
 
 const XRAY_OPACITY = 0.3;
 
@@ -132,11 +133,11 @@ function GlCanvasBind({
 type Props = {
   url: string;
   overlay: ShareOverlayV1 | null;
-  surveyEnabled: boolean;
+  tools: ShareViewerTools;
   token: string;
 };
 
-export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
+export function GlbViewer({ url, overlay, tools, token }: Props) {
   const [showFacades, setShowFacades] = useState(true);
   const [showDims, setShowDims] = useState(false);
   const [xRay, setXRay] = useState(false);
@@ -144,6 +145,11 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
   const [surveyOpen, setSurveyOpen] = useState(false);
   const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hasOverlay = overlay != null;
+  const showToolbar =
+    (hasOverlay && tools.facades) ||
+    (hasOverlay && tools.dims) ||
+    tools.xray ||
+    tools.freeze;
 
   const toggleSurvey = () => {
     setSurveyOpen((open) => {
@@ -154,7 +160,7 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
 
   return (
     <div className="viewer-canvas">
-      {surveyEnabled ? (
+      {tools.survey ? (
         <>
           <div className="viewer-survey">
             <button
@@ -171,11 +177,13 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
             open={surveyOpen}
             frozen={frozen}
             glCanvasRef={glCanvasRef}
+            annotateEnabled={tools.annotate}
           />
         </>
       ) : null}
+      {showToolbar ? (
       <div className="viewer-toolbar">
-        {hasOverlay ? (
+        {hasOverlay && tools.facades ? (
           <button
             type="button"
             className={showFacades ? "is-active" : undefined}
@@ -185,7 +193,7 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
             Фасады
           </button>
         ) : null}
-        {hasOverlay ? (
+        {hasOverlay && tools.dims ? (
           <button
             type="button"
             className={showDims ? "is-active" : undefined}
@@ -195,6 +203,7 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
             Размеры
           </button>
         ) : null}
+        {tools.xray ? (
         <button
           type="button"
           className={xRay ? "is-active" : undefined}
@@ -203,6 +212,8 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
         >
           Xray
         </button>
+        ) : null}
+        {tools.freeze ? (
         <button
           type="button"
           className={frozen ? "is-active" : undefined}
@@ -231,7 +242,9 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
             />
           </svg>
         </button>
+        ) : null}
       </div>
+      ) : null}
       <Canvas
         camera={{ fov: 45, near: 0.05, far: 2000, position: [4, 3, 5] }}
         shadows

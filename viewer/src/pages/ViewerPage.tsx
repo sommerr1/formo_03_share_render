@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
+import { resolveShareViewerTools, type ShareViewerTools } from "../viewer/viewerTools.js";
 import { NotFoundPage } from "./NotFoundPage.js";
 
 type LoadState =
@@ -12,7 +13,7 @@ type LoadState =
       kind: "ready";
       url: string;
       overlay: ShareOverlayV1 | null;
-      surveyEnabled: boolean;
+      tools: ShareViewerTools;
       token: string;
     };
 
@@ -40,12 +41,12 @@ export function ViewerPage() {
         if (!metaRes.ok) {
           throw new Error(`meta ${metaRes.status}`);
         }
-        let surveyEnabled = false;
+        let tools = resolveShareViewerTools({});
         try {
-          const meta = (await metaRes.json()) as { surveyEnabled?: unknown };
-          surveyEnabled = meta.surveyEnabled === true;
+          const meta = (await metaRes.json()) as Record<string, unknown>;
+          tools = resolveShareViewerTools(meta);
         } catch {
-          surveyEnabled = false;
+          tools = resolveShareViewerTools({});
         }
 
         const fileRes = await fetch(
@@ -79,7 +80,7 @@ export function ViewerPage() {
             kind: "ready",
             url: objectUrl,
             overlay,
-            surveyEnabled,
+            tools,
             token,
           });
         }
@@ -120,7 +121,7 @@ export function ViewerPage() {
             <GlbViewer
               url={state.url}
               overlay={state.overlay}
-              surveyEnabled={state.surveyEnabled}
+              tools={state.tools}
               token={state.token}
             />
           </Suspense>

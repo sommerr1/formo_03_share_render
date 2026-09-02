@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { applyViewerToolFlags } from "./meta.js";
 import { SURVEY_SLOTS, type SurveySlot } from "./survey.js";
 import type { RenderMeta } from "./types.js";
 
@@ -63,9 +64,7 @@ export async function getRenderMeta(token: string): Promise<RenderMeta | null> {
       createdAt: parsed.createdAt,
       expiresAt: parsed.expiresAt,
     };
-    if (typeof parsed.surveyEnabled === "boolean") {
-      meta.surveyEnabled = parsed.surveyEnabled;
-    }
+    applyViewerToolFlags(parsed, meta);
     return meta;
   } catch {
     return null;
@@ -132,6 +131,20 @@ export async function waitForUploadSession(
   return null;
 }
 
+export async function waitForRenderMeta(
+  token: string,
+): Promise<RenderMeta | null> {
+  const waitsMs = [0, 250, 500, 1000, 2000];
+  for (const wait of waitsMs) {
+    if (wait > 0) {
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+    const meta = await getRenderMeta(token);
+    if (meta) return meta;
+  }
+  return null;
+}
+
 export async function putUploadPart(
   token: string,
   index: number,
@@ -174,9 +187,7 @@ export async function assembleAndFinalizeUpload(
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
   };
-  if (typeof existing?.surveyEnabled === "boolean") {
-    meta.surveyEnabled = existing.surveyEnabled;
-  }
+  if (existing) applyViewerToolFlags(existing, meta);
   await putRender(token, merged.buffer, meta);
   await deleteUploadArtifacts(token);
   return meta;

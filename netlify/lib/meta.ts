@@ -2,6 +2,28 @@ import type { RenderMeta } from "./types.js";
 
 const DEFAULT_TTL_DAYS = 3;
 
+export const VIEWER_TOOL_META_KEYS = [
+  "surveyEnabled",
+  "facadesEnabled",
+  "dimsEnabled",
+  "xrayEnabled",
+  "freezeEnabled",
+  "annotateEnabled",
+] as const;
+
+export type ViewerToolMetaKey = (typeof VIEWER_TOOL_META_KEYS)[number];
+
+export function applyViewerToolFlags(
+  from: Partial<Record<ViewerToolMetaKey, unknown>>,
+  to: RenderMeta,
+): void {
+  for (const key of VIEWER_TOOL_META_KEYS) {
+    if (typeof from[key] === "boolean") {
+      to[key] = from[key];
+    }
+  }
+}
+
 export function defaultExpiresAt(from = new Date()): string {
   const d = new Date(from);
   d.setUTCDate(d.getUTCDate() + DEFAULT_TTL_DAYS);
@@ -46,9 +68,7 @@ export function readMeta(raw: string | null): RenderMeta | null {
       createdAt: parsed.createdAt,
       expiresAt: parsed.expiresAt,
     };
-    if (typeof parsed.surveyEnabled === "boolean") {
-      meta.surveyEnabled = parsed.surveyEnabled;
-    }
+    applyViewerToolFlags(parsed, meta);
     return meta;
   } catch {
     return null;

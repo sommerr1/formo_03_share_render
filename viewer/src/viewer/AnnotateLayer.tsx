@@ -8,9 +8,7 @@ import {
 } from "react";
 import type { AnnotateOp } from "./surveyDraft.js";
 
-export type AnnotateTool = "pen" | "text" | "symbol" | "erase";
-
-export const ANNOTATE_SYMBOLS = ["!", "?", "→", "←", "○", "×"] as const;
+export type AnnotateTool = "pen" | "text" | "erase";
 
 export type AnnotateLayerHandle = {
   canvas: () => HTMLCanvasElement | null;
@@ -20,7 +18,6 @@ type Props = {
   ops: AnnotateOp[];
   onChange: (ops: AnnotateOp[]) => void;
   tool: AnnotateTool;
-  symbol: string;
   capturing: boolean;
   visible: boolean;
 };
@@ -89,7 +86,7 @@ function drawOps(
 }
 
 export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
-  function AnnotateLayer({ ops, onChange, tool, symbol, capturing, visible }, ref) {
+  function AnnotateLayer({ ops, onChange, tool, capturing, visible }, ref) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const opsRef = useRef(ops);
@@ -144,6 +141,11 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
 
     const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
       if (!capturing) return;
+      if (tool === "text") {
+        const p = norm(e);
+        setEdit({ x: p.x, y: p.y, value: "" });
+        return;
+      }
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       const p = norm(e);
@@ -151,24 +153,16 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
         drawing.current = [p];
         return;
       }
-      if (tool === "erase") {
-        const wrap = wrapRef.current!;
-        const minSide = Math.min(wrap.clientWidth, wrap.clientHeight);
-        const next = [...opsRef.current];
-        for (let i = next.length - 1; i >= 0; i--) {
-          if (hitOp(next[i], p, minSide)) {
-            next.splice(i, 1);
-            onChange(next);
-            break;
-          }
+      const wrap = wrapRef.current!;
+      const minSide = Math.min(wrap.clientWidth, wrap.clientHeight);
+      const next = [...opsRef.current];
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (hitOp(next[i], p, minSide)) {
+          next.splice(i, 1);
+          onChange(next);
+          break;
         }
-        return;
       }
-      if (tool === "symbol") {
-        onChange([...opsRef.current, { kind: "symbol", x: p.x, y: p.y, glyph: symbol }]);
-        return;
-      }
-      setEdit({ x: p.x, y: p.y, value: "" });
     };
 
     const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {

@@ -148,7 +148,7 @@ body,
   background: #000;
 }
 
-.viewer-canvas > div:not(.viewer-toolbar):not(.viewer-survey):not(.viewer-annotate):not(.viewer-annotate-layer) {
+.viewer-canvas > div:not(.viewer-toolbar):not(.viewer-survey):not(.viewer-annotate):not(.viewer-annotate-layer):not(.viewer-survey-dock) {
   position: absolute !important;
   inset: 0;
   width: 100% !important;
@@ -263,6 +263,10 @@ body,
   pointer-events: none;
 }
 
+.viewer-annotate-layer.is-capturing {
+  pointer-events: auto;
+}
+
 .viewer-annotate-layer.is-hidden {
   visibility: hidden;
 }
@@ -277,6 +281,7 @@ body,
 
 .viewer-annotate-text {
   position: absolute;
+  z-index: 2;
   transform: translateY(-1.1em);
   min-width: 8rem;
   padding: 0.2rem 0.35rem;
@@ -285,6 +290,7 @@ body,
   background: rgba(20, 20, 20, 0.92);
   color: #e8eaed;
   font: 600 14px system-ui, sans-serif;
+  pointer-events: auto;
 }
 
 .viewer-survey-dock {

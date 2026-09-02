@@ -6,6 +6,7 @@ import {
   getRenderMeta,
   getRenderOverlay,
   putRenderOverlay,
+  waitForRenderMeta,
 } from "../lib/store.js";
 import { parseToken } from "../lib/tokens.js";
 
@@ -34,10 +35,9 @@ export default async (req: Request, context: Context) => {
   const token = parseToken(context.params.token);
   if (!token) return json({ error: "Not found" }, 404);
 
-  const meta = await getRenderMeta(token);
-  if (!meta || isExpired(meta)) return json({ error: "Not found" }, 404);
-
   if (req.method === "GET") {
+    const meta = await getRenderMeta(token);
+    if (!meta || isExpired(meta)) return json({ error: "Not found" }, 404);
     const raw = await getRenderOverlay(token);
     if (!raw) return json({ error: "Not found" }, 404);
     try {
@@ -50,6 +50,9 @@ export default async (req: Request, context: Context) => {
   if (req.method === "PUT") {
     const denied = requireAdmin(req);
     if (denied) return denied;
+
+    const meta = await waitForRenderMeta(token);
+    if (!meta || isExpired(meta)) return json({ error: "Not found" }, 404);
 
     const text = await req.text();
     if (text.length > MAX_OVERLAY_BYTES) {

@@ -8,7 +8,7 @@
 
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
-| POST | `/api/upload/chunked/init` | Bearer | `{ expiresAt, totalChunks, fileSizeBytes }` → `{ token, url, … }` |
+| POST | `/api/upload/chunked/init` | Bearer | `{ expiresAt, totalChunks, fileSizeBytes, token? }` → `{ token, url, … }`. Если `token` задан — замена GLB по той же ссылке |
 | PUT | `/api/upload/chunked/:token/:index` | Bearer | binary chunk (max 4 MB) |
 | POST | `/api/upload/chunked/:token/complete` | Bearer | собрать GLB из частей |
 

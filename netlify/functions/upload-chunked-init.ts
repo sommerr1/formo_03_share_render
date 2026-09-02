@@ -6,9 +6,11 @@ import {
   CHUNK_SIZE_BYTES,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_CHUNKS,
+  deleteUploadArtifacts,
+  getRenderMeta,
   putUploadSession,
 } from "../lib/store.js";
-import { newToken } from "../lib/tokens.js";
+import { newToken, parseToken } from "../lib/tokens.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method === "OPTIONS") return options();
@@ -64,8 +66,22 @@ export default async (req: Request, _context: Context) => {
     return json({ error: msg }, 400);
   }
 
-  const token = newToken();
-  const createdAt = new Date().toISOString();
+  let token = newToken();
+  let createdAt = new Date().toISOString();
+  const replaceRaw =
+    body && typeof body === "object" && "token" in body
+      ? (body as { token: unknown }).token
+      : null;
+  if (typeof replaceRaw === "string" && replaceRaw.trim()) {
+    const existingToken = parseToken(replaceRaw.trim());
+    if (!existingToken) return json({ error: "Invalid token" }, 400);
+    const existing = await getRenderMeta(existingToken);
+    if (!existing) return json({ error: "Not found" }, 404);
+    await deleteUploadArtifacts(existingToken);
+    token = existingToken;
+    createdAt = existing.createdAt;
+  }
+
   await putUploadSession(token, {
     createdAt,
     expiresAt,

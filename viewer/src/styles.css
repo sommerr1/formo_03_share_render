@@ -246,6 +246,10 @@ body,
   cursor: pointer;
 }
 
+.viewer-annotate button svg {
+  display: block;
+}
+
 .viewer-annotate button.is-active {
   border-color: #8ab4f8;
   background: #1b2a40;

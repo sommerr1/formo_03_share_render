@@ -290,11 +290,27 @@ export function SurveyPanel({
           <button
             type="button"
             className={tool === "pen" ? "is-active" : undefined}
-            title="Подчёркивание"
+            title="Карандаш"
+            aria-label="Карандаш"
             aria-pressed={tool === "pen"}
             onClick={() => setTool("pen")}
           >
-            —
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+              <path
+                d="M11.2 2.4 13.6 4.8 5.6 12.8H3.2v-2.4z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9.9 3.7 12.3 6.1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
           <button
             type="button"
@@ -308,11 +324,27 @@ export function SurveyPanel({
           <button
             type="button"
             className={tool === "erase" ? "is-active" : undefined}
-            title="Стереть"
+            title="Ластик"
+            aria-label="Ластик"
             aria-pressed={tool === "erase"}
             onClick={() => setTool("erase")}
           >
-            ⌫
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+              <path
+                d="M3.2 9.2 8.4 4l3.6 3.6-5.2 5.2H3.6z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4.8 12.8h7.4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
           <button type="button" title="Отменить" disabled={annot[slot].length === 0} onClick={undo}>
             ↩

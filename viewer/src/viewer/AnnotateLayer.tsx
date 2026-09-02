@@ -77,6 +77,7 @@ function drawOps(
       ctx.stroke();
     } else if (op.kind === "text") {
       ctx.font = `600 ${Math.max(16, minSide * 0.032)}px system-ui, sans-serif`;
+      ctx.textBaseline = "top";
       ctx.fillText(op.text, op.x * w, op.y * h);
     } else {
       ctx.font = `700 ${Math.max(22, minSide * 0.045)}px system-ui, sans-serif`;
@@ -95,6 +96,10 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
     const [edit, setEdit] = useState<{ x: number; y: number; value: string } | null>(
       null,
     );
+    const editRef = useRef(edit);
+    editRef.current = edit;
+    const inputRef = useRef<HTMLInputElement>(null);
+    const placedAt = useRef(0);
 
     useImperativeHandle(ref, () => ({
       canvas: () => canvasRef.current,
@@ -142,7 +147,10 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
     const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
       if (!capturing) return;
       if (tool === "text") {
+        e.preventDefault();
+        e.stopPropagation();
         const p = norm(e);
+        placedAt.current = Date.now();
         setEdit({ x: p.x, y: p.y, value: "" });
         return;
       }
@@ -216,13 +224,20 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
       }
     };
 
-    const commitText = () => {
+    useEffect(() => {
       if (!edit) return;
-      const text = edit.value.trim();
+      const id = window.setTimeout(() => inputRef.current?.focus(), 0);
+      return () => window.clearTimeout(id);
+    }, [edit?.x, edit?.y]);
+
+    const commitText = () => {
+      const cur = editRef.current;
+      if (!cur) return;
+      const text = cur.value.trim();
       if (text) {
         onChange([
           ...opsRef.current,
-          { kind: "text", x: edit.x, y: edit.y, text },
+          { kind: "text", x: cur.x, y: cur.y, text },
         ]);
       }
       setEdit(null);
@@ -248,13 +263,21 @@ export const AnnotateLayer = forwardRef<AnnotateLayerHandle, Props>(
         />
         {edit ? (
           <input
+            ref={inputRef}
             className="viewer-annotate-text"
             style={{ left: `${edit.x * 100}%`, top: `${edit.y * 100}%` }}
-            autoFocus
             value={edit.value}
+            onPointerDown={(e) => e.stopPropagation()}
             onChange={(e) => setEdit({ ...edit, value: e.target.value })}
-            onBlur={commitText}
+            onBlur={() => {
+              if (Date.now() - placedAt.current < 250) {
+                inputRef.current?.focus();
+                return;
+              }
+              commitText();
+            }}
             onKeyDown={(e) => {
+              e.stopPropagation();
               if (e.key === "Enter") {
                 e.preventDefault();
                 commitText();

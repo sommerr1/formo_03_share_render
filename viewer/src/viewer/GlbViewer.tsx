@@ -170,7 +170,7 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
           aria-pressed={xRay}
           onClick={() => setXRay((v) => !v)}
         >
-          X-Ray
+          Xray
         </button>
       </div>
       <Canvas

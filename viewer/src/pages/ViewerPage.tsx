@@ -78,6 +78,10 @@ export function ViewerPage() {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (state.kind === "ready") document.title = "Formo Share Render";
+  }, [state.kind]);
+
   const body = useMemo(() => {
     switch (state.kind) {
       case "loading":

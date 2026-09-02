@@ -15,7 +15,108 @@ body,
   margin: 0;
   width: 100%;
   height: 100%;
-  background: #000;
+  background: #202124;
+}
+
+.nx-html,
+.nx-html body,
+.nx-html #root {
+  background: #202124;
+}
+
+.nx {
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 50px 24px 40px;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #e8eaed;
+  background: #202124;
+}
+
+.nx__inner {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.nx__icon {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.nx__title {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #e8eaed;
+}
+
+.nx__lead {
+  margin: 0 0 0.35em;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #e8eaed;
+}
+
+.nx__lead strong {
+  font-weight: 700;
+}
+
+.nx__link {
+  color: #8ab4f8;
+  text-decoration: none;
+}
+
+.nx__link:hover {
+  text-decoration: underline;
+}
+
+.nx__code {
+  margin: 18px 0 22px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #9aa0a6;
+}
+
+.nx__reload {
+  appearance: none;
+  border: none;
+  border-radius: 18px;
+  min-height: 36px;
+  padding: 8px 16px;
+  font: 500 13px/1 "Segoe UI", Tahoma, sans-serif;
+  background: #8ab4f8;
+  color: #202124;
+  cursor: pointer;
+}
+
+.nx--edge {
+  padding-top: 72px;
+  text-align: center;
+}
+
+.nx--edge .nx__inner {
+  max-width: 520px;
+}
+
+.nx--edge .nx__icon {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.nx--edge .nx__title {
+  font-size: 1.65rem;
+  font-weight: 600;
+}
+
+.nx--edge .nx__reload {
+  border-radius: 4px;
+  min-height: 40px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  background: #0078d4;
+  color: #fff;
 }
 
 .page {

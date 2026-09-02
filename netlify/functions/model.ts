@@ -5,9 +5,12 @@ import { isExpired, parseExpiresAtJson } from "../lib/meta.js";
 import {
   deleteRender,
   getRenderMeta,
+  getRenderSurvey,
   patchRenderMeta,
 } from "../lib/store.js";
+import { surveySubmittedAtFromRaw } from "../lib/survey.js";
 import { parseToken } from "../lib/tokens.js";
+import type { RenderMeta } from "../lib/types.js";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") return options();
@@ -20,7 +23,13 @@ export default async (req: Request, context: Context) => {
     if (!meta || isExpired(meta)) {
       return json({ error: "Not found" }, 404);
     }
-    return json(meta);
+    const surveySubmittedAt = surveySubmittedAtFromRaw(
+      await getRenderSurvey(token),
+    );
+    return json({
+      ...meta,
+      ...(surveySubmittedAt ? { surveySubmittedAt } : {}),
+    });
   }
 
   if (req.method === "PATCH") {
@@ -37,21 +46,50 @@ export default async (req: Request, context: Context) => {
       return json({ error: "Invalid JSON" }, 400);
     }
 
-    let expiresAt: string;
-    try {
-      expiresAt = parseExpiresAtJson(
-        body && typeof body === "object" && "expiresAt" in body
-          ? (body as { expiresAt: unknown }).expiresAt
-          : null,
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Invalid expiresAt";
-      return json({ error: msg }, 400);
+    if (!body || typeof body !== "object") {
+      return json({ error: "Invalid JSON" }, 400);
+    }
+    const patch = body as { expiresAt?: unknown; surveyEnabled?: unknown };
+    const hasExpiry = "expiresAt" in patch;
+    const hasSurvey = "surveyEnabled" in patch;
+    if (!hasExpiry && !hasSurvey) {
+      return json({ error: "expiresAt or surveyEnabled required" }, 400);
     }
 
-    const next = { ...current, expiresAt };
+    let expiresAt = current.expiresAt;
+    if (hasExpiry) {
+      try {
+        expiresAt = parseExpiresAtJson(patch.expiresAt);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Invalid expiresAt";
+        return json({ error: msg }, 400);
+      }
+    }
+
+    let surveyEnabled = current.surveyEnabled;
+    if (hasSurvey) {
+      if (typeof patch.surveyEnabled !== "boolean") {
+        return json({ error: "Invalid surveyEnabled" }, 400);
+      }
+      surveyEnabled = patch.surveyEnabled;
+    }
+
+    const next: RenderMeta = {
+      createdAt: current.createdAt,
+      expiresAt,
+    };
+    if (typeof surveyEnabled === "boolean") {
+      next.surveyEnabled = surveyEnabled;
+    }
     await patchRenderMeta(token, next);
-    return json(next);
+
+    const surveySubmittedAt = surveySubmittedAtFromRaw(
+      await getRenderSurvey(token),
+    );
+    return json({
+      ...next,
+      ...(surveySubmittedAt ? { surveySubmittedAt } : {}),
+    });
   }
 
   if (req.method === "DELETE") {

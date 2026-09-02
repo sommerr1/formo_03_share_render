@@ -8,7 +8,13 @@ type LoadState =
   | { kind: "loading" }
   | { kind: "notFound" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; url: string; overlay: ShareOverlayV1 | null };
+  | {
+      kind: "ready";
+      url: string;
+      overlay: ShareOverlayV1 | null;
+      surveyEnabled: boolean;
+      token: string;
+    };
 
 export function ViewerPage() {
   const { token } = useParams();
@@ -33,6 +39,13 @@ export function ViewerPage() {
         }
         if (!metaRes.ok) {
           throw new Error(`meta ${metaRes.status}`);
+        }
+        let surveyEnabled = false;
+        try {
+          const meta = (await metaRes.json()) as { surveyEnabled?: unknown };
+          surveyEnabled = meta.surveyEnabled === true;
+        } catch {
+          surveyEnabled = false;
         }
 
         const fileRes = await fetch(
@@ -61,7 +74,15 @@ export function ViewerPage() {
           }
         }
 
-        if (!revoked) setState({ kind: "ready", url: objectUrl, overlay });
+        if (!revoked) {
+          setState({
+            kind: "ready",
+            url: objectUrl,
+            overlay,
+            surveyEnabled,
+            token,
+          });
+        }
       } catch (err) {
         if (!revoked) {
           setState({
@@ -96,7 +117,12 @@ export function ViewerPage() {
       case "ready":
         return (
           <Suspense fallback={<p className="status">Подготовка сцены…</p>}>
-            <GlbViewer url={state.url} overlay={state.overlay} />
+            <GlbViewer
+              url={state.url}
+              overlay={state.overlay}
+              surveyEnabled={state.surveyEnabled}
+              token={state.token}
+            />
           </Suspense>
         );
     }

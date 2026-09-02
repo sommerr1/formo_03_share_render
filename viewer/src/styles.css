@@ -148,7 +148,7 @@ body,
   background: #000;
 }
 
-.viewer-canvas > div:not(.viewer-toolbar) {
+.viewer-canvas > div:not(.viewer-toolbar):not(.viewer-survey) {
   position: absolute !important;
   inset: 0;
   width: 100% !important;
@@ -180,6 +180,120 @@ body,
 .viewer-toolbar button.is-active {
   border-color: #8ab4f8;
   background: #1b2a40;
+}
+
+.viewer-survey {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(400px, calc(100% - 24px));
+  pointer-events: none;
+}
+
+.viewer-survey > * {
+  pointer-events: auto;
+}
+
+.viewer-survey-tag {
+  appearance: none;
+  border: 1px solid #3a3a3a;
+  background: #141414;
+  color: #e8eaed;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-survey-tag.is-active {
+  border-color: #8ab4f8;
+  background: #1b2a40;
+}
+
+.viewer-survey-panel {
+  width: min(380px, 100%);
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 0.75rem 0.85rem 0.9rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.94);
+  color: #e8eaed;
+}
+
+.viewer-survey-q {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.viewer-survey-q legend,
+.viewer-survey-q > span,
+label.viewer-survey-q {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.viewer-survey-radios {
+  display: flex;
+  gap: 0.85rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.viewer-survey-radios label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.viewer-survey-panel textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.4rem;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  background: #0e0e0e;
+  color: inherit;
+  font: inherit;
+}
+
+.viewer-survey-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.viewer-survey-actions button {
+  appearance: none;
+  border: 1px solid #3a3a3a;
+  background: #1b2a40;
+  color: #e8eaed;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-survey-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.viewer-survey-status {
+  font-size: 0.8rem;
+  color: #9aa0a6;
 }
 
 .share-dim {

@@ -42,7 +42,14 @@ export function readMeta(raw: string | null): RenderMeta | null {
     ) {
       return null;
     }
-    return parsed;
+    const meta: RenderMeta = {
+      createdAt: parsed.createdAt,
+      expiresAt: parsed.expiresAt,
+    };
+    if (typeof parsed.surveyEnabled === "boolean") {
+      meta.surveyEnabled = parsed.surveyEnabled;
+    }
+    return meta;
   } catch {
     return null;
   }

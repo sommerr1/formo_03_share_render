@@ -8,6 +8,7 @@ import {
   FORMO_FACADES_GROUP,
   type ShareOverlayV1,
 } from "./overlayTypes.js";
+import { SurveyPanel } from "./SurveyPanel.js";
 
 const XRAY_OPACITY = 0.3;
 
@@ -116,16 +117,32 @@ function XRaySceneSync({ xRay }: { xRay: boolean }) {
 type Props = {
   url: string;
   overlay: ShareOverlayV1 | null;
+  surveyEnabled: boolean;
+  token: string;
 };
 
-export function GlbViewer({ url, overlay }: Props) {
+export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
   const [showFacades, setShowFacades] = useState(true);
   const [showDims, setShowDims] = useState(false);
   const [xRay, setXRay] = useState(false);
+  const [surveyOpen, setSurveyOpen] = useState(false);
   const hasOverlay = overlay != null;
 
   return (
     <div className="viewer-canvas">
+      {surveyEnabled ? (
+        <div className="viewer-survey">
+          <button
+            type="button"
+            className={surveyOpen ? "viewer-survey-tag is-active" : "viewer-survey-tag"}
+            aria-pressed={surveyOpen}
+            onClick={() => setSurveyOpen((v) => !v)}
+          >
+            Опрос
+          </button>
+          {surveyOpen ? <SurveyPanel token={token} /> : null}
+        </div>
+      ) : null}
       <div className="viewer-toolbar">
         {hasOverlay ? (
           <button

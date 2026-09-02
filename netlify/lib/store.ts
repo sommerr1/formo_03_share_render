@@ -26,6 +26,10 @@ function overlayKey(token: string): string {
   return `${token}.overlay.json`;
 }
 
+function surveyKey(token: string): string {
+  return `${token}.survey.json`;
+}
+
 function partKey(token: string, index: number): string {
   return `${token}.part.${index}`;
 }
@@ -50,7 +54,14 @@ export async function getRenderMeta(token: string): Promise<RenderMeta | null> {
     ) {
       return null;
     }
-    return parsed;
+    const meta: RenderMeta = {
+      createdAt: parsed.createdAt,
+      expiresAt: parsed.expiresAt,
+    };
+    if (typeof parsed.surveyEnabled === "boolean") {
+      meta.surveyEnabled = parsed.surveyEnabled;
+    }
+    return meta;
   } catch {
     return null;
   }
@@ -139,10 +150,14 @@ export async function assembleAndFinalizeUpload(
     offset += part.byteLength;
   }
 
+  const existing = await getRenderMeta(token);
   const meta: RenderMeta = {
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
   };
+  if (typeof existing?.surveyEnabled === "boolean") {
+    meta.surveyEnabled = existing.surveyEnabled;
+  }
   await putRender(token, merged.buffer, meta);
   await deleteUploadArtifacts(token);
   return meta;
@@ -195,11 +210,29 @@ export async function putRenderOverlay(
   });
 }
 
+export async function getRenderSurvey(
+  token: string,
+): Promise<string | null> {
+  const store = renderStore();
+  return store.get(surveyKey(token), { type: "text" });
+}
+
+export async function putRenderSurvey(
+  token: string,
+  json: string,
+): Promise<void> {
+  const store = renderStore();
+  await store.set(surveyKey(token), json, {
+    metadata: { contentType: "application/json" },
+  });
+}
+
 export async function deleteRender(token: string): Promise<void> {
   const store = renderStore();
   await store.delete(glbKey(token));
   await store.delete(metaKey(token));
   await store.delete(overlayKey(token));
+  await store.delete(surveyKey(token));
   await deleteUploadArtifacts(token);
 }
 

@@ -1,6 +1,7 @@
 export type RenderMeta = {
   createdAt: string;
   expiresAt: string;
+  surveyEnabled?: boolean;
 };
 
 export type UploadResponse = {

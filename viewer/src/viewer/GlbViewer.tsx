@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Bounds, Environment, OrbitControls, useGLTF } from "@react-three/drei";
 import type { Material, Mesh, Object3D } from "three";
@@ -66,12 +66,14 @@ function SceneContent({
   showFacades,
   showDims,
   xRay,
+  frozen,
 }: {
   url: string;
   overlay: ShareOverlayV1 | null;
   showFacades: boolean;
   showDims: boolean;
   xRay: boolean;
+  frozen: boolean;
 }) {
   const { scene } = useGLTF(url);
   const cloned = useMemo(() => scene.clone(true), [scene]);
@@ -96,6 +98,7 @@ function SceneContent({
               root={cloned}
               actors={overlay.actors}
               facadesOn={showFacades}
+              interactive={!frozen}
             />
           ) : null}
         </group>
@@ -114,6 +117,18 @@ function XRaySceneSync({ xRay }: { xRay: boolean }) {
   return null;
 }
 
+function GlCanvasBind({
+  target,
+}: {
+  target: MutableRefObject<HTMLCanvasElement | null>;
+}) {
+  const { gl } = useThree();
+  useLayoutEffect(() => {
+    target.current = gl.domElement;
+  }, [gl, target]);
+  return null;
+}
+
 type Props = {
   url: string;
   overlay: ShareOverlayV1 | null;
@@ -125,23 +140,39 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
   const [showFacades, setShowFacades] = useState(true);
   const [showDims, setShowDims] = useState(false);
   const [xRay, setXRay] = useState(false);
+  const [frozen, setFrozen] = useState(false);
   const [surveyOpen, setSurveyOpen] = useState(false);
+  const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hasOverlay = overlay != null;
+
+  const toggleSurvey = () => {
+    setSurveyOpen((open) => {
+      if (!open) setFrozen(true);
+      return !open;
+    });
+  };
 
   return (
     <div className="viewer-canvas">
       {surveyEnabled ? (
-        <div className="viewer-survey">
-          <button
-            type="button"
-            className={surveyOpen ? "viewer-survey-tag is-active" : "viewer-survey-tag"}
-            aria-pressed={surveyOpen}
-            onClick={() => setSurveyOpen((v) => !v)}
-          >
-            Опрос
-          </button>
-          {surveyOpen ? <SurveyPanel token={token} /> : null}
-        </div>
+        <>
+          <div className="viewer-survey">
+            <button
+              type="button"
+              className={surveyOpen ? "viewer-survey-tag is-active" : "viewer-survey-tag"}
+              aria-pressed={surveyOpen}
+              onClick={toggleSurvey}
+            >
+              Опрос
+            </button>
+          </div>
+          <SurveyPanel
+            token={token}
+            open={surveyOpen}
+            frozen={frozen}
+            glCanvasRef={glCanvasRef}
+          />
+        </>
       ) : null}
       <div className="viewer-toolbar">
         {hasOverlay ? (
@@ -172,12 +203,40 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
         >
           Xray
         </button>
+        <button
+          type="button"
+          className={frozen ? "is-active" : undefined}
+          aria-pressed={frozen}
+          title={frozen ? "Разморозить вид" : "Заморозить вид"}
+          aria-label={frozen ? "Разморозить вид" : "Заморозить вид"}
+          onClick={() => setFrozen((v) => !v)}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+            <rect
+              x="4"
+              y="7.2"
+              width="8"
+              height="6.4"
+              rx="1.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.35"
+            />
+            <path
+              d="M5.6 7.2V5.3a2.4 2.4 0 0 1 4.8 0v1.9"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.35"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
       </div>
       <Canvas
         camera={{ fov: 45, near: 0.05, far: 2000, position: [4, 3, 5] }}
         shadows
         dpr={[1, 2]}
-        gl={{ antialias: true }}
+        gl={{ antialias: true, preserveDrawingBuffer: true }}
         style={{ width: "100%", height: "100%", display: "block", background: "#000" }}
       >
         <color attach="background" args={["#000000"]} />
@@ -190,8 +249,10 @@ export function GlbViewer({ url, overlay, surveyEnabled, token }: Props) {
           showFacades={showFacades}
           showDims={showDims}
           xRay={xRay}
+          frozen={frozen}
         />
-        <OrbitControls makeDefault enableDamping />
+        <GlCanvasBind target={glCanvasRef} />
+        <OrbitControls makeDefault enableDamping enabled={!frozen} />
       </Canvas>
     </div>
   );

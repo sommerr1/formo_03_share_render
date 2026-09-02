@@ -92,11 +92,13 @@ function FacadeRig({
   root,
   open,
   onToggle,
+  interactive,
 }: {
   actor: FacadeActor;
   root: Object3D;
   open: boolean;
   onToggle: () => void;
+  interactive: boolean;
 }) {
   const object = useMemo(
     () => root.getObjectByName(actor.partId) ?? null,
@@ -127,21 +129,23 @@ function FacadeRig({
     <group position={[pivot.x, pivot.y, pivot.z]}>
       <group ref={swingRef}>
         <group ref={innerRef} position={[-pivot.x, -pivot.y, -pivot.z]}>
-          {corners.map((c) => {
-            const p = cornerLocalPos(c, actor.size);
-            return (
-              <group
-                key={c}
-                position={[actor.center.x, actor.center.y, actor.center.z]}
-              >
-                <HotspotMesh
-                  position={[p.x, p.y, p.z]}
-                  args={[pad, pad, 0.008]}
-                  onToggle={onToggle}
-                />
-              </group>
-            );
-          })}
+          {interactive
+            ? corners.map((c) => {
+                const p = cornerLocalPos(c, actor.size);
+                return (
+                  <group
+                    key={c}
+                    position={[actor.center.x, actor.center.y, actor.center.z]}
+                  >
+                    <HotspotMesh
+                      position={[p.x, p.y, p.z]}
+                      args={[pad, pad, 0.008]}
+                      onToggle={onToggle}
+                    />
+                  </group>
+                );
+              })
+            : null}
         </group>
       </group>
     </group>
@@ -153,11 +157,13 @@ function DrawerRig({
   root,
   open,
   onToggle,
+  interactive,
 }: {
   actor: DrawerActor;
   root: Object3D;
   open: boolean;
   onToggle: () => void;
+  interactive: boolean;
 }) {
   const objects = useMemo(() => {
     const found: Object3D[] = [];
@@ -187,11 +193,13 @@ function DrawerRig({
   return (
     <group ref={drawerRef}>
       <group position={[actor.center.x, actor.center.y, actor.center.z]}>
-        <HotspotMesh
-          position={[0, 0, actor.size.z / 2 + 0.012]}
-          args={[w, h, 0.016]}
-          onToggle={onToggle}
-        />
+        {interactive ? (
+          <HotspotMesh
+            position={[0, 0, actor.size.z / 2 + 0.012]}
+            args={[w, h, 0.016]}
+            onToggle={onToggle}
+          />
+        ) : null}
       </group>
     </group>
   );
@@ -201,10 +209,12 @@ export function AnimLayer({
   root,
   actors,
   facadesOn,
+  interactive = true,
 }: {
   root: Object3D;
   actors: readonly AnimActor[];
   facadesOn: boolean;
+  interactive?: boolean;
 }) {
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) => {
@@ -228,6 +238,7 @@ export function AnimLayer({
               root={root}
               open={openIds.has(actor.id)}
               onToggle={() => toggle(actor.id)}
+              interactive={interactive}
             />
           );
         }
@@ -238,6 +249,7 @@ export function AnimLayer({
             root={root}
             open={openIds.has(actor.id)}
             onToggle={() => toggle(actor.id)}
+            interactive={interactive}
           />
         );
       })}

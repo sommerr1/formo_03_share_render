@@ -25,7 +25,13 @@ export function withCors(
 }
 
 export function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), withCors({ status }, { "Content-Type": "application/json" }));
+  return new Response(
+    JSON.stringify(data),
+    withCors(
+      { status },
+      { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    ),
+  );
 }
 
 export function options(): Response {

@@ -4,9 +4,14 @@ import { isExpired } from "../lib/meta.js";
 import {
   getRenderMeta,
   getRenderSurvey,
+  listSurveyImageFlags,
   putRenderSurvey,
 } from "../lib/store.js";
-import { isSurveyDraft, parseShareSurvey, type ShareSurveyV1 } from "../lib/survey.js";
+import {
+  isSurveyDraft,
+  parseShareSurvey,
+  type ShareSurvey,
+} from "../lib/survey.js";
 import { parseToken } from "../lib/tokens.js";
 
 const MAX_SURVEY_BYTES = 16 * 1024;
@@ -51,12 +56,23 @@ export default async (req: Request, context: Context) => {
       return json({ error: "Invalid survey" }, 400);
     }
 
-    const stored: ShareSurveyV1 = {
-      schemaVersion: 1,
-      submittedAt: new Date().toISOString(),
-      items: body.items,
-      other: body.other,
-    };
+    const submittedAt = new Date().toISOString();
+    const stored: ShareSurvey =
+      body.schemaVersion === 2
+        ? {
+            schemaVersion: 2,
+            submittedAt,
+            items: body.items,
+            other: body.other,
+            images: await listSurveyImageFlags(token),
+          }
+        : {
+            schemaVersion: 1,
+            submittedAt,
+            items: body.items,
+            other: body.other,
+            images: {},
+          };
     await putRenderSurvey(token, JSON.stringify(stored));
     return json(stored);
   }

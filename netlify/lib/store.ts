@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { SURVEY_SLOTS, type SurveySlot } from "./survey.js";
 import type { RenderMeta } from "./types.js";
 
 export type UploadSession = {
@@ -28,6 +29,10 @@ function overlayKey(token: string): string {
 
 function surveyKey(token: string): string {
   return `${token}.survey.json`;
+}
+
+function surveyImageKey(token: string, slot: SurveySlot): string {
+  return `${token}.survey.${slot}.jpg`;
 }
 
 function partKey(token: string, index: number): string {
@@ -246,12 +251,50 @@ export async function putRenderSurvey(
   });
 }
 
+export async function getRenderSurveyImage(
+  token: string,
+  slot: SurveySlot,
+): Promise<ArrayBuffer | null> {
+  const store = renderStore();
+  return store.get(surveyImageKey(token, slot), { type: "arrayBuffer" });
+}
+
+export async function putRenderSurveyImage(
+  token: string,
+  slot: SurveySlot,
+  data: ArrayBuffer,
+): Promise<void> {
+  const store = renderStore();
+  await store.set(surveyImageKey(token, slot), data, {
+    metadata: { contentType: "image/jpeg" },
+  });
+}
+
+export async function listSurveyImageFlags(
+  token: string,
+): Promise<Partial<Record<SurveySlot, true>>> {
+  const images: Partial<Record<SurveySlot, true>> = {};
+  for (const slot of SURVEY_SLOTS) {
+    const buf = await getRenderSurveyImage(token, slot);
+    if (buf && buf.byteLength > 0) images[slot] = true;
+  }
+  return images;
+}
+
+async function deleteRenderSurveyImages(token: string): Promise<void> {
+  const store = renderStore();
+  for (const slot of SURVEY_SLOTS) {
+    await store.delete(surveyImageKey(token, slot));
+  }
+}
+
 export async function deleteRender(token: string): Promise<void> {
   const store = renderStore();
   await store.delete(glbKey(token));
   await store.delete(metaKey(token));
   await store.delete(overlayKey(token));
   await store.delete(surveyKey(token));
+  await deleteRenderSurveyImages(token);
   await deleteUploadArtifacts(token);
 }
 

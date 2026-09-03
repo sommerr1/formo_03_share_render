@@ -4,6 +4,7 @@ import { Bounds, OrbitControls, useGLTF } from "@react-three/drei";
 import {
   ACESFilmicToneMapping,
   SRGBColorSpace,
+  type CanvasTexture,
   type Material,
   type Mesh,
   type Object3D,
@@ -28,7 +29,7 @@ import {
   pickOverlayDims,
   type ShareOverlayV1,
 } from "./overlayTypes.js";
-import { PhotoBackdrop } from "./PhotoBackdrop.js";
+import { PhotoBackdrop, PhotoClear } from "./PhotoBackdrop.js";
 import { PHOTO_BG_FLAG, readPhotoFile } from "./photoBg.js";
 import { SurveyPanel } from "./SurveyPanel.js";
 import { overflowMenuVisible, type ShareViewerTools } from "./viewerTools.js";
@@ -207,6 +208,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [satOn, setSatOn] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoTex, setPhotoTex] = useState<CanvasTexture | null>(null);
   const [photoLuma, setPhotoLuma] = useState(0.5);
   const [glbBusy, setGlbBusy] = useState(false);
   const frozenRef = useRef(frozen);
@@ -215,12 +217,14 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
   const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRootRef = useRef<Object3D | null>(null);
   const photoUrlRef = useRef<string | null>(null);
+  const photoTexRef = useRef<CanvasTexture | null>(null);
   const hasOverlay = overlay != null;
   const lightK = photoUrl ? exposureFromLuma(photoLuma) : 1;
 
   useEffect(() => {
     return () => {
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      photoTexRef.current?.dispose();
     };
   }, []);
 
@@ -239,8 +243,11 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
     try {
       const next = await readPhotoFile(file);
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      photoTexRef.current?.dispose();
       photoUrlRef.current = next.url;
+      photoTexRef.current = next.texture;
       setPhotoUrl(next.url);
+      setPhotoTex(next.texture);
       setPhotoLuma(next.luma);
     } catch {
       /* ignore */
@@ -249,8 +256,11 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
 
   const onPhotoClear = () => {
     if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoTexRef.current?.dispose();
     photoUrlRef.current = null;
+    photoTexRef.current = null;
     setPhotoUrl(null);
+    setPhotoTex(null);
   };
 
   const onDownloadGlb = async () => {
@@ -276,6 +286,9 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
 
   return (
     <div className="viewer-canvas">
+      {photoUrl ? (
+        <img className="viewer-photo-bg" src={photoUrl} alt="" />
+      ) : null}
       {tools.survey ? (
         <>
           <div className="viewer-survey">
@@ -411,15 +424,22 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         camera={{ fov: 45, near: 0.05, far: 2000, position: [4, 3, 5] }}
         shadows
         dpr={[1, 2]}
-        gl={{ antialias: true, preserveDrawingBuffer: true }}
+        gl={{ antialias: true, preserveDrawingBuffer: true, alpha: true }}
         style={{
           width: "100%",
           height: "100%",
           display: "block",
+          background: "transparent",
         }}
       >
-        <color attach="background" args={[photoUrl ? "#000000" : "#1a1d24"]} />
-        {photoUrl ? <PhotoBackdrop url={photoUrl} /> : null}
+        {photoUrl ? (
+          <>
+            <PhotoClear />
+            {photoTex ? <PhotoBackdrop texture={photoTex} /> : null}
+          </>
+        ) : (
+          <color attach="background" args={["#1a1d24"]} />
+        )}
         <ambientLight intensity={0.35 * lightK} color="#ffffff" />
         <directionalLight
           intensity={1.1 * lightK}

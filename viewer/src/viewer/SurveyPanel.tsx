@@ -33,7 +33,7 @@ type Props = {
 };
 
 const INTRO_ID = "__intro";
-const SWIPE_PX = 40;
+const SWIPE_PX = 36;
 const SWIPE_MAX = 80;
 
 function emptyForm(ids: string[]): Record<string, SurveyItemDraft> {
@@ -70,7 +70,12 @@ export function SurveyPanel({
   const jpegRef = useRef<Record<string, Blob>>({});
   const annotRef = useRef(annot);
   annotRef.current = annot;
-  const swipeRef = useRef<{ x: number; y: number; id: number } | null>(null);
+  const swipeRef = useRef<{
+    x: number;
+    y: number;
+    id: number;
+    locked: boolean;
+  } | null>(null);
 
   const [ready, setReady] = useState(false);
   const questions = def.questions;
@@ -228,13 +233,18 @@ export function SurveyPanel({
   };
 
   const onDockPointerDown = (e: ReactPointerEvent<HTMLFormElement>) => {
+    if (e.button !== 0) return;
     const t = e.target as HTMLElement;
-    if (t.closest("textarea, button, input, label")) {
+    if (t.closest("textarea, button")) {
       swipeRef.current = null;
       return;
     }
-    swipeRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    swipeRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      id: e.pointerId,
+      locked: false,
+    };
   };
 
   const onDockPointerMove = (e: ReactPointerEvent<HTMLFormElement>) => {
@@ -242,10 +252,17 @@ export function SurveyPanel({
     if (!start || start.id !== e.pointerId) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
-    if (Math.abs(dx) <= Math.abs(dy)) {
-      setSwipeDx(0);
-      return;
+    if (!start.locked) {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.15) {
+        swipeRef.current = null;
+        setSwipeDx(0);
+        return;
+      }
+      start.locked = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
     }
+    e.preventDefault();
     setSwipeDx(clamp(dx, -SWIPE_MAX, SWIPE_MAX));
   };
 
@@ -253,10 +270,9 @@ export function SurveyPanel({
     const start = swipeRef.current;
     swipeRef.current = null;
     setSwipeDx(0);
-    if (!start || start.id !== e.pointerId || busy) return;
+    if (!start || start.id !== e.pointerId || busy || !start.locked) return;
     const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    if (Math.abs(dx) < SWIPE_PX) return;
     if (dx < 0) goForward();
     else goBack();
   };
@@ -408,7 +424,6 @@ export function SurveyPanel({
           onSubmit={(e) => {
             e.preventDefault();
             if (last) void submit();
-            else goForward();
           }}
           onPointerDown={onDockPointerDown}
           onPointerMove={onDockPointerMove}
@@ -444,7 +459,6 @@ export function SurveyPanel({
               ›
             </button>
           </div>
-          <p className="viewer-survey-swipe-hint">свайп ‹ ›</p>
           {onIntro ? (
             <p className="viewer-survey-intro">{instruction}</p>
           ) : (
@@ -481,21 +495,16 @@ export function SurveyPanel({
               />
             </>
           )}
-          <div className="viewer-survey-actions">
-            <button type="button" disabled={!canBack || busy} onClick={goBack}>
-              Назад
-            </button>
-            {last ? (
-              <button type="submit" disabled={!hasInput || busy}>
-                {busy ? "…" : "Отправить"}
-              </button>
-            ) : (
-              <button type="submit" disabled={busy}>
-                Далее
-              </button>
-            )}
-            {status ? <span className="viewer-survey-status">{status}</span> : null}
-          </div>
+          {last || status ? (
+            <div className="viewer-survey-actions">
+              {last ? (
+                <button type="submit" disabled={!hasInput || busy}>
+                  {busy ? "…" : "Отправить"}
+                </button>
+              ) : null}
+              {status ? <span className="viewer-survey-status">{status}</span> : null}
+            </div>
+          ) : null}
         </form>
       ) : null}
     </>

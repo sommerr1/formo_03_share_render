@@ -148,11 +148,28 @@ body,
   background: #000;
 }
 
+.viewer-canvas canvas {
+  background: transparent !important;
+}
+
+.viewer-photo-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+}
+
 .viewer-canvas > div:not(.viewer-toolbar):not(.viewer-survey):not(.viewer-annotate):not(.viewer-annotate-layer):not(.viewer-survey-dock) {
   position: absolute !important;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
+  background: transparent !important;
+  z-index: 1;
 }
 
 .viewer-toolbar {
@@ -384,13 +401,14 @@ body,
   max-width: 560px;
   margin: 0 auto;
   max-height: min(52vh, 420px);
-  overflow: auto;
+  overflow: hidden;
   padding: 0.35rem 0.85rem 0.8rem;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   background: rgba(20, 20, 20, 0.94);
   color: #e8eaed;
   touch-action: pan-x;
+  user-select: none;
   transition: transform 0.16s ease-out;
 }
 
@@ -447,19 +465,14 @@ body,
   color: #e8eaed;
 }
 
-.viewer-survey-swipe-hint {
-  margin: 0 0 0.45rem;
-  text-align: center;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  color: #9aa0a6;
-}
-
 .viewer-survey-intro {
   margin: 0 0 0.7rem;
+  max-height: 28vh;
+  overflow-y: auto;
   font-size: 0.92rem;
   line-height: 1.45;
   white-space: pre-wrap;
+  touch-action: pan-y;
 }
 
 .viewer-survey-hint {
@@ -508,6 +521,7 @@ body,
   color: inherit;
   font: inherit;
   touch-action: pan-y;
+  user-select: text;
 }
 
 .viewer-survey-actions {

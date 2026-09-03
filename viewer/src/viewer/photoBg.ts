@@ -1,3 +1,9 @@
+import {
+  CanvasTexture,
+  LinearFilter,
+  SRGBColorSpace,
+} from "three";
+
 const MAX_EDGE = 1920;
 
 export const PHOTO_BG_FLAG = "formoPhotoBg";
@@ -89,7 +95,7 @@ async function sourceFromFile(
 
 export async function readPhotoFile(
   file: File,
-): Promise<{ url: string; luma: number }> {
+): Promise<{ texture: CanvasTexture; url: string; luma: number }> {
   const src = await sourceFromFile(file);
   try {
     const scale = Math.min(1, MAX_EDGE / Math.max(src.width, src.height, 1));
@@ -102,6 +108,11 @@ export async function readPhotoFile(
     if (!ctx) throw new Error("canvas");
     ctx.drawImage(src.draw, 0, 0, w, h);
     const luma = lumaOfCanvas(ctx, w, h);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.needsUpdate = true;
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("jpeg"))),
@@ -109,7 +120,7 @@ export async function readPhotoFile(
         0.82,
       );
     });
-    return { url: URL.createObjectURL(blob), luma };
+    return { texture, url: URL.createObjectURL(blob), luma };
   } finally {
     src.close?.();
   }

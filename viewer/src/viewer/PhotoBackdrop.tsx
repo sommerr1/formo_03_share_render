@@ -1,16 +1,18 @@
-import { createPortal, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useRef } from "react";
 import {
-  LinearFilter,
+  Color,
   PerspectiveCamera,
-  SRGBColorSpace,
-  Texture,
-  TextureLoader,
+  Vector3,
   type Mesh,
+  type Texture,
 } from "three";
 import { containPlaneSize, PHOTO_BG_FLAG } from "./photoBg.js";
 
 function noopRaycast(): void {}
+
+const _dir = new Vector3();
+const _clear = new Color(0x000000);
 
 function fitPhotoPlane(
   mesh: Mesh,
@@ -20,59 +22,40 @@ function fitPhotoPlane(
 ): void {
   const img = texture.image as { width: number; height: number } | undefined;
   if (!img?.width || !img.height) return;
-  const dist = camera.near + 0.02;
-  mesh.position.set(0, 0, -dist);
+  const span = Math.max(camera.far - camera.near, 0.05);
+  const dist = camera.near + Math.min(0.2, span * 0.04);
   const vFov = (camera.fov * Math.PI) / 180;
   const viewH = 2 * Math.tan(vFov / 2) * dist;
   const viewW = viewH * viewAspect;
   const { w, h } = containPlaneSize(viewW, viewH, img.width, img.height);
   mesh.scale.set(w, h, 1);
+  mesh.quaternion.copy(camera.quaternion);
+  camera.getWorldDirection(_dir);
+  mesh.position.copy(camera.position).addScaledVector(_dir, dist);
 }
 
-export function PhotoBackdrop({ url }: { url: string }) {
-  const { camera, size } = useThree();
+/** Keep WebGL clear transparent so the CSS photo shows through. */
+export function PhotoClear() {
+  const { gl, scene } = useThree();
+  useFrame(() => {
+    scene.background = null;
+    gl.setClearColor(_clear, 0);
+  });
+  return null;
+}
+
+export function PhotoBackdrop({ texture }: { texture: Texture }) {
   const meshRef = useRef<Mesh>(null);
-  const [texture, setTexture] = useState<Texture | null>(null);
+  const { camera, size } = useThree();
   const viewAspect = size.width / Math.max(size.height, 1);
-
-  useEffect(() => {
-    let disposed = false;
-    const loader = new TextureLoader();
-    loader.load(url, (tex) => {
-      if (disposed) {
-        tex.dispose();
-        return;
-      }
-      tex.colorSpace = SRGBColorSpace;
-      tex.minFilter = LinearFilter;
-      tex.magFilter = LinearFilter;
-      tex.needsUpdate = true;
-      setTexture(tex);
-    });
-    return () => {
-      disposed = true;
-      setTexture((prev) => {
-        prev?.dispose();
-        return null;
-      });
-    };
-  }, [url]);
-
-  useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh || !texture) return;
-    fitPhotoPlane(mesh, camera as PerspectiveCamera, texture, viewAspect);
-  }, [camera, texture, viewAspect]);
 
   useFrame(() => {
     const mesh = meshRef.current;
-    if (!mesh || !texture) return;
+    if (!mesh) return;
     fitPhotoPlane(mesh, camera as PerspectiveCamera, texture, viewAspect);
   });
 
-  if (!texture) return null;
-
-  return createPortal(
+  return (
     <mesh
       ref={meshRef}
       frustumCulled={false}
@@ -89,7 +72,6 @@ export function PhotoBackdrop({ url }: { url: string }) {
         depthWrite={false}
         toneMapped={false}
       />
-    </mesh>,
-    camera,
+    </mesh>
   );
 }

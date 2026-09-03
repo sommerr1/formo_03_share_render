@@ -19,8 +19,9 @@
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | POST | `/api/upload` | Bearer | multipart ≤ ~5 MB |
-| GET | `/api/models/:token` | — | meta `{ createdAt, expiresAt }` |
-| PATCH | `/api/models/:token` | Bearer | `{ expiresAt }` |
+| GET | `/api/models` | Bearer | список `{ items: [{ token, url, createdAt, expiresAt, label?, notes? }] }` |
+| GET | `/api/models/:token` | — | meta `{ createdAt, expiresAt }` — **без** notes |
+| PATCH | `/api/models/:token` | Bearer | `{ expiresAt, surveyEnabled, label?, notes? }` |
 | DELETE | `/api/models/:token` | Bearer | удалить модель |
 | GET | `/api/models/:token/file` | — | GLB binary |
 | GET | `/api/models/:token/overlay` | — | dims + anim JSON (404 если нет) |

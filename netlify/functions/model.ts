@@ -9,9 +9,12 @@ import {
 } from "../lib/meta.js";
 import {
   deleteRender,
+  getRenderAdmin,
   getRenderMeta,
   getRenderSurvey,
+  mergeAdminPatch,
   patchRenderMeta,
+  putRenderAdmin,
 } from "../lib/store.js";
 import { surveySubmittedAtFromRaw } from "../lib/survey.js";
 import { parseToken } from "../lib/tokens.js";
@@ -64,8 +67,19 @@ export default async (req: Request, context: Context) => {
       }
       toolPatch[key] = rec[key];
     }
-    if (!hasExpiry && Object.keys(toolPatch).length === 0) {
-      return json({ error: "expiresAt or tool flags required" }, 400);
+    const adminMerged = mergeAdminPatch(
+      (await getRenderAdmin(token)) ?? {},
+      rec,
+    );
+    if ("error" in adminMerged) {
+      return json({ error: adminMerged.error }, 400);
+    }
+    if (
+      !hasExpiry &&
+      Object.keys(toolPatch).length === 0 &&
+      !adminMerged.touched
+    ) {
+      return json({ error: "expiresAt, tool flags or admin fields required" }, 400);
     }
 
     let expiresAt = current.expiresAt;
@@ -84,7 +98,12 @@ export default async (req: Request, context: Context) => {
     };
     applyViewerToolFlags(current, next);
     applyViewerToolFlags(toolPatch, next);
-    await patchRenderMeta(token, next);
+    if (hasExpiry || Object.keys(toolPatch).length > 0) {
+      await patchRenderMeta(token, next);
+    }
+    if (adminMerged.touched) {
+      await putRenderAdmin(token, adminMerged.admin);
+    }
 
     const surveySubmittedAt = surveySubmittedAtFromRaw(
       await getRenderSurvey(token),

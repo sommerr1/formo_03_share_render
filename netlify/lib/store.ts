@@ -1,7 +1,8 @@
 import { getStore } from "@netlify/blobs";
-import { applyViewerToolFlags } from "./meta.js";
+import { applyViewerToolFlags, siteBaseUrl } from "./meta.js";
 import { SURVEY_SLOTS, type SurveySlot } from "./survey.js";
-import type { RenderMeta } from "./types.js";
+import { parseToken } from "./tokens.js";
+import type { RenderAdmin, RenderListItem, RenderMeta } from "./types.js";
 
 export type UploadSession = {
   createdAt: string;
@@ -30,6 +31,10 @@ function overlayKey(token: string): string {
 
 function surveyKey(token: string): string {
   return `${token}.survey.json`;
+}
+
+function adminKey(token: string): string {
+  return `${token}.admin.json`;
 }
 
 function surveyImageKey(token: string, slot: SurveySlot): string {
@@ -223,6 +228,101 @@ export async function patchRenderMeta(
   });
 }
 
+const ADMIN_KEYS = ["label", "notes", "address"] as const;
+
+export function parseRenderAdmin(raw: string | null): RenderAdmin | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return null;
+    const admin: RenderAdmin = {};
+    for (const key of ADMIN_KEYS) {
+      if (typeof parsed[key] === "string") admin[key] = parsed[key];
+    }
+    return admin;
+  } catch {
+    return null;
+  }
+}
+
+export async function getRenderAdmin(token: string): Promise<RenderAdmin | null> {
+  const store = renderStore();
+  const raw = await store.get(adminKey(token), { type: "text" });
+  if (raw == null) return null;
+  return parseRenderAdmin(raw) ?? {};
+}
+
+export async function putRenderAdmin(
+  token: string,
+  admin: RenderAdmin,
+): Promise<void> {
+  const store = renderStore();
+  const cleaned: RenderAdmin = {};
+  for (const key of ADMIN_KEYS) {
+    const v = admin[key]?.trim();
+    if (v) cleaned[key] = v;
+  }
+  await store.set(adminKey(token), JSON.stringify(cleaned), {
+    metadata: { contentType: "application/json" },
+  });
+}
+
+export function mergeAdminPatch(
+  current: RenderAdmin,
+  rec: Record<string, unknown>,
+): { admin: RenderAdmin; touched: boolean } | { error: string } {
+  const next: RenderAdmin = { ...current };
+  let touched = false;
+  for (const key of ADMIN_KEYS) {
+    if (!(key in rec)) continue;
+    if (rec[key] !== null && typeof rec[key] !== "string") {
+      return { error: `Invalid ${key}` };
+    }
+    touched = true;
+    const v = typeof rec[key] === "string" ? rec[key].trim() : "";
+    if (v) next[key] = v;
+    else delete next[key];
+  }
+  return { admin: next, touched };
+}
+
+export async function listRenderListItems(): Promise<RenderListItem[]> {
+  const store = renderStore();
+  const tokens = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await store.list(cursor ? { cursor } : undefined);
+    for (const item of page.blobs) {
+      if (!item.key.endsWith(".meta.json")) continue;
+      const token = parseToken(item.key.slice(0, -".meta.json".length));
+      if (token) tokens.add(token);
+    }
+    cursor = page.cursor;
+  } while (cursor);
+
+  const items: RenderListItem[] = [];
+  const base = siteBaseUrl();
+  for (const token of tokens) {
+    const meta = await getRenderMeta(token);
+    if (!meta) continue;
+    const admin = await getRenderAdmin(token);
+    const item: RenderListItem = {
+      token,
+      url: `${base}/v/${token}`,
+      createdAt: meta.createdAt,
+      expiresAt: meta.expiresAt,
+    };
+    if (admin) {
+      item.label = admin.label ?? "";
+      item.notes = admin.notes ?? "";
+      item.address = admin.address ?? "";
+    }
+    items.push(item);
+  }
+  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return items;
+}
+
 export async function getRenderGlb(token: string): Promise<ArrayBuffer | null> {
   const store = renderStore();
   return store.get(glbKey(token), { type: "arrayBuffer" });
@@ -305,6 +405,7 @@ export async function deleteRender(token: string): Promise<void> {
   await store.delete(metaKey(token));
   await store.delete(overlayKey(token));
   await store.delete(surveyKey(token));
+  await store.delete(adminKey(token));
   await deleteRenderSurveyImages(token);
   await deleteUploadArtifacts(token);
 }

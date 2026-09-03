@@ -9,6 +9,23 @@ export type RenderMeta = {
   annotateEnabled?: boolean;
 };
 
+/** Admin-only sidecar. Never returned from public GET /api/models/:token. */
+export type RenderAdmin = {
+  label?: string;
+  notes?: string;
+  address?: string;
+};
+
+export type RenderListItem = {
+  token: string;
+  url: string;
+  createdAt: string;
+  expiresAt: string;
+  label?: string;
+  notes?: string;
+  address?: string;
+};
+
 export type UploadResponse = {
   token: string;
   url: string;

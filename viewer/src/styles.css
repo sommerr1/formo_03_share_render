@@ -159,11 +159,18 @@ body,
   position: absolute;
   z-index: 2;
   top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
+  right: 96px;
+  transform: none;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   pointer-events: auto;
+}
+
+.viewer-toolbar--flush {
+  right: 12px;
 }
 
 .viewer-toolbar button {
@@ -312,6 +319,7 @@ body,
   border-radius: 8px;
   background: rgba(20, 20, 20, 0.94);
   color: #e8eaed;
+  touch-action: pan-y;
 }
 
 .viewer-survey-step {

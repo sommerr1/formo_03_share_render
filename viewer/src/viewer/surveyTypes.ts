@@ -44,9 +44,9 @@ export type SurveyFormDraft = {
 };
 
 export const SURVEY_QUESTIONS: Record<(typeof SURVEY_ITEM_KEYS)[number], string> = {
-  dims: "Все ли в порядке с размерами, если нет, то что конкретно?",
-  decor: "Все ли в порядке с декором и сочетаниями цветов, если нет, то что конкретно?",
-  facades: "Все ли в порядке с фасадами, если нет, то что конкретно?",
+  dims: "Все ли в порядке с размерами?",
+  decor: "Все ли в порядке с декором и сочетаниями цветов?",
+  facades: "Все ли в порядке с фасадами?",
 };
 
 export const SURVEY_OTHER_QUESTION =
@@ -63,9 +63,7 @@ function isSurveyItem(v: unknown): v is SurveyItem {
   if (!v || typeof v !== "object") return false;
   const o = v as { status?: unknown; comment?: unknown };
   if (o.status !== "ok" && o.status !== "not_ok") return false;
-  if (typeof o.comment !== "string") return false;
-  if (o.status === "not_ok" && o.comment.trim().length === 0) return false;
-  return true;
+  return typeof o.comment === "string";
 }
 
 function parseImages(v: unknown): Partial<Record<SurveySlot, true>> {
@@ -139,7 +137,6 @@ export function formToDraft(form: SurveyFormDraft): SurveyDraft | null {
   for (const key of SURVEY_ITEM_KEYS) {
     const item = form.items[key];
     if (item.status !== "ok" && item.status !== "not_ok") return null;
-    if (item.status === "not_ok" && item.comment.trim().length === 0) return null;
     items[key] = { status: item.status, comment: item.comment };
   }
   return { schemaVersion: 2, items, other: form.other };

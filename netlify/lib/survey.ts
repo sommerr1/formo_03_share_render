@@ -45,9 +45,7 @@ function isSurveyItem(v: unknown): v is SurveyItem {
   if (!v || typeof v !== "object") return false;
   const o = v as { status?: unknown; comment?: unknown };
   if (o.status !== "ok" && o.status !== "not_ok") return false;
-  if (typeof o.comment !== "string") return false;
-  if (o.status === "not_ok" && o.comment.trim().length === 0) return false;
-  return true;
+  return typeof o.comment === "string";
 }
 
 function parseImages(v: unknown): Partial<Record<SurveySlot, true>> {

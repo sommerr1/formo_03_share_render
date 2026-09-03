@@ -143,6 +143,9 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
   const [xRay, setXRay] = useState(false);
   const [frozen, setFrozen] = useState(false);
   const [surveyOpen, setSurveyOpen] = useState(false);
+  const frozenRef = useRef(frozen);
+  frozenRef.current = frozen;
+  const freezeBeforeSurveyRef = useRef(false);
   const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hasOverlay = overlay != null;
   const showToolbar =
@@ -151,11 +154,15 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
     tools.xray ||
     tools.freeze;
 
-  const toggleSurvey = () => {
-    setSurveyOpen((open) => {
-      if (!open) setFrozen(true);
-      return !open;
-    });
+  const openSurvey = () => {
+    freezeBeforeSurveyRef.current = frozenRef.current;
+    if (!frozenRef.current) setFrozen(true);
+    setSurveyOpen(true);
+  };
+
+  const closeSurvey = () => {
+    setFrozen(freezeBeforeSurveyRef.current);
+    setSurveyOpen(false);
   };
 
   return (
@@ -167,7 +174,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
               type="button"
               className={surveyOpen ? "viewer-survey-tag is-active" : "viewer-survey-tag"}
               aria-pressed={surveyOpen}
-              onClick={toggleSurvey}
+              onClick={surveyOpen ? closeSurvey : openSurvey}
             >
               Опрос
             </button>
@@ -182,7 +189,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         </>
       ) : null}
       {showToolbar ? (
-      <div className="viewer-toolbar">
+      <div className={tools.survey ? "viewer-toolbar" : "viewer-toolbar viewer-toolbar--flush"}>
         {hasOverlay && tools.facades ? (
           <button
             type="button"

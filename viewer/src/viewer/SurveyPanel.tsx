@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import {
   AnnotateLayer,
   exportAnnotateJpeg,
@@ -34,24 +34,7 @@ type Props = {
   annotateEnabled?: boolean;
 };
 
-function speechCtor(): (new () => SpeechRecognitionLike) | null {
-  const w = window as unknown as {
-    SpeechRecognition?: new () => SpeechRecognitionLike;
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-type SpeechRecognitionLike = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
+const SWIPE_PX = 48;
 
 function slotIndex(slot: SurveySlot): number {
   return SURVEY_SLOTS.indexOf(slot);
@@ -68,15 +51,14 @@ export function SurveyPanel({
   const [slot, setSlot] = useState<SurveySlot>("dims");
   const [annot, setAnnot] = useState<AnnotateBySlot>(() => emptyAnnot());
   const [undone, setUndone] = useState<AnnotateBySlot>(() => emptyAnnot());
-  const [tool, setTool] = useState<AnnotateTool>("pen");
+  const [tool, setTool] = useState<AnnotateTool | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
   const layerRef = useRef<AnnotateLayerHandle>(null);
   const jpegRef = useRef<Partial<Record<SurveySlot, Blob>>>({});
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
   const annotRef = useRef(annot);
   annotRef.current = annot;
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
 
   const [ready, setReady] = useState(false);
 
@@ -116,12 +98,15 @@ export function SurveyPanel({
     saveSurveyLocalDraft(token, { form, slot, annot });
   }, [ready, token, form, slot, annot]);
 
-  const capturing = open && frozen && annotateEnabled;
+  const capturing = open && frozen && annotateEnabled && tool != null;
   const draft = formToDraft(form);
   const idx = slotIndex(slot);
   const last = idx === SURVEY_SLOTS.length - 1;
   const question = SURVEY_SLOT_QUESTIONS[slot];
-  const hasMic = speechCtor() != null;
+
+  const toggleTool = (next: AnnotateTool) => {
+    setTool((cur) => (cur === next ? null : next));
+  };
 
   const setOps = (ops: AnnotateOp[]) => {
     setAnnot((cur) => ({ ...cur, [slot]: ops }));
@@ -178,54 +163,24 @@ export function SurveyPanel({
     setStatus(null);
   };
 
-  const appendComment = (text: string) => {
-    if (slot === "other") {
-      setForm((cur) => ({
-        ...cur,
-        other: cur.other ? `${cur.other} ${text}` : text,
-      }));
+  const onDockPointerDown = (e: ReactPointerEvent<HTMLFormElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.closest("textarea, button, input, label")) {
+      swipeRef.current = null;
       return;
     }
-    setForm((cur) => ({
-      ...cur,
-      items: {
-        ...cur.items,
-        [slot]: {
-          ...cur.items[slot],
-          comment: cur.items[slot].comment
-            ? `${cur.items[slot].comment} ${text}`
-            : text,
-        },
-      },
-    }));
+    swipeRef.current = { x: e.clientX, y: e.clientY };
   };
 
-  const toggleMic = () => {
-    const Ctor = speechCtor();
-    if (!Ctor) return;
-    if (listening && recRef.current) {
-      recRef.current.stop();
-      return;
-    }
-    const rec = new Ctor();
-    rec.lang = "ru-RU";
-    rec.interimResults = false;
-    rec.continuous = false;
-    rec.onresult = (ev) => {
-      const chunk = ev.results[ev.results.length - 1]?.[0]?.transcript?.trim();
-      if (chunk) appendComment(chunk);
-    };
-    rec.onend = () => {
-      setListening(false);
-      recRef.current = null;
-    };
-    rec.onerror = () => {
-      setListening(false);
-      recRef.current = null;
-    };
-    recRef.current = rec;
-    setListening(true);
-    rec.start();
+  const onDockPointerUp = (e: ReactPointerEvent<HTMLFormElement>) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start || busy) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx < 0 && !last) void goSlot(SURVEY_SLOTS[idx + 1]);
+    if (dx > 0 && idx > 0) void goSlot(SURVEY_SLOTS[idx - 1]);
   };
 
   const submit = async () => {
@@ -293,7 +248,7 @@ export function SurveyPanel({
             title="Карандаш"
             aria-label="Карандаш"
             aria-pressed={tool === "pen"}
-            onClick={() => setTool("pen")}
+            onClick={() => toggleTool("pen")}
           >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
               <path
@@ -317,7 +272,7 @@ export function SurveyPanel({
             className={tool === "text" ? "is-active" : undefined}
             title="Текст"
             aria-pressed={tool === "text"}
-            onClick={() => setTool("text")}
+            onClick={() => toggleTool("text")}
           >
             T
           </button>
@@ -327,7 +282,7 @@ export function SurveyPanel({
             title="Ластик"
             aria-label="Ластик"
             aria-pressed={tool === "erase"}
-            onClick={() => setTool("erase")}
+            onClick={() => toggleTool("erase")}
           >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
               <path
@@ -352,24 +307,13 @@ export function SurveyPanel({
           <button type="button" title="Повторить" disabled={undone[slot].length === 0} onClick={redo}>
             ↪
           </button>
-          {hasMic ? (
-            <button
-              type="button"
-              className={listening ? "is-active" : undefined}
-              title="Голос в комментарий"
-              aria-pressed={listening}
-              onClick={toggleMic}
-            >
-              голос
-            </button>
-          ) : null}
         </div>
       ) : null}
       <AnnotateLayer
         ref={layerRef}
         ops={annot[slot]}
         onChange={setOps}
-        tool={tool}
+        tool={tool ?? "pen"}
         capturing={capturing}
         visible={open}
       />
@@ -380,6 +324,11 @@ export function SurveyPanel({
             e.preventDefault();
             if (last) void submit();
             else void goSlot(SURVEY_SLOTS[idx + 1]);
+          }}
+          onPointerDown={onDockPointerDown}
+          onPointerUp={onDockPointerUp}
+          onPointerCancel={() => {
+            swipeRef.current = null;
           }}
         >
           <p className="viewer-survey-step">
@@ -395,7 +344,7 @@ export function SurveyPanel({
                   checked={itemStatus === "ok"}
                   onChange={() => setItem(slot, { status: "ok" as SurveyStatus })}
                 />
-                Ок
+                Да
               </label>
               <label>
                 <input
@@ -406,7 +355,7 @@ export function SurveyPanel({
                     setItem(slot, { status: "not_ok" as SurveyStatus })
                   }
                 />
-                Не ок
+                Нет
               </label>
             </div>
           ) : null}
@@ -420,10 +369,6 @@ export function SurveyPanel({
               }
               setStatus(null);
             }}
-            placeholder={
-              itemStatus === "not_ok" ? "Что именно не так" : "Комментарий"
-            }
-            required={itemStatus === "not_ok"}
             rows={2}
           />
           <div className="viewer-survey-actions">

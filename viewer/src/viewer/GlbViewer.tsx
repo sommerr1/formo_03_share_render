@@ -28,7 +28,8 @@ import {
   pickOverlayDims,
   type ShareOverlayV1,
 } from "./overlayTypes.js";
-import { readPhotoFile } from "./photoBg.js";
+import { PhotoBackdrop } from "./PhotoBackdrop.js";
+import { PHOTO_BG_FLAG, readPhotoFile } from "./photoBg.js";
 import { SurveyPanel } from "./SurveyPanel.js";
 import { overflowMenuVisible, type ShareViewerTools } from "./viewerTools.js";
 
@@ -36,6 +37,7 @@ const XRAY_OPACITY = 0.3;
 
 function applyXRay(root: Object3D, on: boolean): void {
   root.traverse((obj) => {
+    if (obj.userData?.[PHOTO_BG_FLAG]) return;
     const mesh = obj as Mesh;
     if (!mesh.isMesh) return;
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -188,14 +190,6 @@ function GlCanvasBind({
   return null;
 }
 
-function ClearAlpha({ transparent }: { transparent: boolean }) {
-  const { gl } = useThree();
-  useLayoutEffect(() => {
-    gl.setClearColor(0x000000, transparent ? 0 : 1);
-  }, [gl, transparent]);
-  return null;
-}
-
 type Props = {
   url: string;
   overlay: ShareOverlayV1 | null;
@@ -282,9 +276,6 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
 
   return (
     <div className="viewer-canvas">
-      {photoUrl ? (
-        <img className="viewer-photo-bg" src={photoUrl} alt="" />
-      ) : null}
       {tools.survey ? (
         <>
           <div className="viewer-survey">
@@ -310,21 +301,51 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         {hasOverlay && tools.facades ? (
           <button
             type="button"
-            className={showFacades ? "is-active" : undefined}
+            className={showFacades ? "viewer-icon-btn is-active" : "viewer-icon-btn"}
             aria-pressed={showFacades}
+            title="Фасады"
+            aria-label="Фасады"
             onClick={() => setShowFacades((v) => !v)}
           >
-            Фасады
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+              <rect
+                x="3.2"
+                y="3.2"
+                width="9.6"
+                height="9.6"
+                rx="1.1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+              />
+            </svg>
           </button>
         ) : null}
         {hasOverlay && tools.dims ? (
           <button
             type="button"
-            className={showDims ? "is-active" : undefined}
+            className={showDims ? "viewer-icon-btn is-active" : "viewer-icon-btn"}
             aria-pressed={showDims}
+            title="Размеры"
+            aria-label="Размеры"
             onClick={() => setShowDims((v) => !v)}
           >
-            Размеры
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+              <path
+                d="M2 8h12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinecap="round"
+              />
+              <path
+                d="M2 5v6M14 5v6M8 6v4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         ) : null}
         {tools.xray ? (
@@ -340,7 +361,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         {tools.freeze ? (
         <button
           type="button"
-          className={frozen ? "is-active" : undefined}
+          className={frozen ? "viewer-icon-btn is-active" : "viewer-icon-btn"}
           aria-pressed={frozen}
           title={frozen ? "Разморозить вид" : "Заморозить вид"}
           aria-label={frozen ? "Разморозить вид" : "Заморозить вид"}
@@ -390,16 +411,15 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         camera={{ fov: 45, near: 0.05, far: 2000, position: [4, 3, 5] }}
         shadows
         dpr={[1, 2]}
-        gl={{ antialias: true, preserveDrawingBuffer: true, alpha: true }}
+        gl={{ antialias: true, preserveDrawingBuffer: true }}
         style={{
           width: "100%",
           height: "100%",
           display: "block",
-          background: "transparent",
         }}
       >
-        <ClearAlpha transparent={photoUrl != null} />
-        {photoUrl ? null : <color attach="background" args={["#1a1d24"]} />}
+        <color attach="background" args={[photoUrl ? "#000000" : "#1a1d24"]} />
+        {photoUrl ? <PhotoBackdrop url={photoUrl} /> : null}
         <ambientLight intensity={0.35 * lightK} color="#ffffff" />
         <directionalLight
           intensity={1.1 * lightK}

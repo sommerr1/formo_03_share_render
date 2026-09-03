@@ -64,7 +64,7 @@ export function OverflowMenu({
     <div className="viewer-overflow" ref={wrapRef}>
       <button
         type="button"
-        className={open ? "is-active" : undefined}
+        className={open ? "viewer-icon-btn is-active" : "viewer-icon-btn"}
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="Настройки"
@@ -97,7 +97,7 @@ export function OverflowMenu({
               setOpen(false);
             }}
           >
-            {glbBusy ? "GLB…" : "Получить GLB для доп. реальности"}
+            {glbBusy ? "GLB…" : "Скачать модель"}
           </button>
           ) : null}
           {showBgPhoto ? (
@@ -134,24 +134,26 @@ export function OverflowMenu({
           </>
           ) : null}
           {showSat ? (
-          <label className="viewer-overflow-check">
-            <input
-              type="checkbox"
-              checked={satOn}
-              onChange={(e) => onSatOn(e.target.checked)}
-            />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            className={satOn ? "is-active" : undefined}
+            aria-checked={satOn}
+            onClick={() => onSatOn(!satOn)}
+          >
             Цвета насыщеннее
-          </label>
+          </button>
           ) : null}
           {showFillersToggle && hasFillers ? (
-            <label className="viewer-overflow-check">
-              <input
-                type="checkbox"
-                checked={showFillers}
-                onChange={(e) => onShowFillers(e.target.checked)}
-              />
-              Показать доборы
-            </label>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            className={showFillers ? "is-active" : undefined}
+            aria-checked={showFillers}
+            onClick={() => onShowFillers(!showFillers)}
+          >
+            Доборы
+          </button>
           ) : null}
         </div>
       ) : null}

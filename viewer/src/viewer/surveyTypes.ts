@@ -202,18 +202,31 @@ export function surveyToQuestionDrafts(
 export function formToDraftV3(
   form: Record<string, SurveyItemDraft>,
   questions: Array<{ id: string; kind: "choice" | "note" }>,
-): SurveyDraftV3 | null {
+): SurveyDraftV3 {
   const items: Record<string, SurveyAnswer> = {};
   for (const q of questions) {
     const row = form[q.id] ?? emptyQuestionDraft();
-    if (q.kind === "choice") {
-      if (row.status !== "ok" && row.status !== "not_ok") return null;
+    if (q.kind === "choice" && (row.status === "ok" || row.status === "not_ok")) {
       items[q.id] = { status: row.status, comment: row.comment };
     } else {
       items[q.id] = { comment: row.comment };
     }
   }
   return { schemaVersion: 3, items };
+}
+
+export function surveyFormHasInput(
+  form: Record<string, SurveyItemDraft>,
+  questions: Array<{ id: string }>,
+  annot?: Record<string, unknown[]>,
+): boolean {
+  for (const q of questions) {
+    const row = form[q.id] ?? emptyQuestionDraft();
+    if (row.status === "ok" || row.status === "not_ok") return true;
+    if (row.comment.trim()) return true;
+    if ((annot?.[q.id] ?? []).length > 0) return true;
+  }
+  return false;
 }
 
 export function validateShareSurvey(data: unknown): data is ShareSurvey {

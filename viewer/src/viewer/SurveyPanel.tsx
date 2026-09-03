@@ -18,6 +18,7 @@ import {
   emptyQuestionDraft,
   formToDraftV3,
   parseShareSurvey,
+  surveyFormHasInput,
   surveyToQuestionDrafts,
   type SurveyItemDraft,
   type SurveyStatus,
@@ -31,12 +32,18 @@ type Props = {
   annotateEnabled?: boolean;
 };
 
-const SWIPE_PX = 48;
+const INTRO_ID = "__intro";
+const SWIPE_PX = 40;
+const SWIPE_MAX = 80;
 
 function emptyForm(ids: string[]): Record<string, SurveyItemDraft> {
   const out: Record<string, SurveyItemDraft> = {};
   for (const id of ids) out[id] = emptyQuestionDraft();
   return out;
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
 }
 
 export function SurveyPanel({
@@ -58,20 +65,28 @@ export function SurveyPanel({
   const [tool, setTool] = useState<AnnotateTool | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [swipeDx, setSwipeDx] = useState(0);
   const layerRef = useRef<AnnotateLayerHandle>(null);
   const jpegRef = useRef<Record<string, Blob>>({});
   const annotRef = useRef(annot);
   annotRef.current = annot;
-  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const swipeRef = useRef<{ x: number; y: number; id: number } | null>(null);
 
   const [ready, setReady] = useState(false);
   const questions = def.questions;
   const ids = questions.map((q) => q.id);
-  const idx = Math.max(0, ids.indexOf(qid));
-  const current = questions[idx] ?? questions[0]!;
-  const last = idx === questions.length - 1;
-  const qAnnotate = annotateEnabled && current.annotate;
   const instruction = def.instruction.trim();
+  const hasIntro = instruction.length > 0;
+  const onIntro = hasIntro && qid === INTRO_ID;
+  const qIdx = onIntro ? -1 : Math.max(0, ids.indexOf(qid));
+  const current = questions[qIdx] ?? questions[0]!;
+  const last = !onIntro && qIdx === questions.length - 1;
+  const stepCount = questions.length + (hasIntro ? 1 : 0);
+  const stepNum = onIntro ? 1 : qIdx + 1 + (hasIntro ? 1 : 0);
+  const canBack = onIntro ? false : qIdx > 0 || hasIntro;
+  const canForward = !last;
+  const qAnnotate = !onIntro && annotateEnabled && current.annotate;
+  const hasInput = surveyFormHasInput(form, questions, annot);
 
   useEffect(() => {
     let revoked = false;
@@ -91,15 +106,17 @@ export function SurveyPanel({
       }
       if (revoked) return;
       const nextIds = nextDef.questions.map((q) => q.id);
+      const nextHasIntro = nextDef.instruction.trim().length > 0;
       setDef(nextDef);
 
       const local = loadSurveyLocalDraft(token);
       let nextForm = emptyForm(nextIds);
-      let nextQid = nextIds[0]!;
+      let nextQid = nextHasIntro ? INTRO_ID : nextIds[0]!;
       let nextAnnot = emptyAnnot(nextIds);
       if (local) {
         nextForm = { ...nextForm, ...local.form };
-        if (nextIds.includes(local.qid)) nextQid = local.qid;
+        if (local.qid === INTRO_ID && nextHasIntro) nextQid = INTRO_ID;
+        else if (nextIds.includes(local.qid)) nextQid = local.qid;
         nextAnnot = { ...nextAnnot, ...local.annot };
       }
       setForm(nextForm);
@@ -132,8 +149,11 @@ export function SurveyPanel({
     saveSurveyLocalDraft(token, { form, qid, annot });
   }, [ready, token, form, qid, annot]);
 
+  useEffect(() => {
+    if (!hasIntro && qid === INTRO_ID && questions[0]) setQid(questions[0].id);
+  }, [hasIntro, qid, questions]);
+
   const capturing = open && frozen && qAnnotate && tool != null;
-  const draft = formToDraftV3(form, questions);
 
   const toggleTool = (next: AnnotateTool) => {
     setTool((cur) => (cur === next ? null : next));
@@ -181,9 +201,22 @@ export function SurveyPanel({
   };
 
   const goId = async (next: string) => {
-    await captureSlot(current.id);
+    if (!onIntro) await captureSlot(current.id);
     setQid(next);
     setStatus(null);
+    setSwipeDx(0);
+  };
+
+  const goBack = () => {
+    if (!canBack || busy) return;
+    if (qIdx === 0 && hasIntro) void goId(INTRO_ID);
+    else if (qIdx > 0) void goId(ids[qIdx - 1]!);
+  };
+
+  const goForward = () => {
+    if (!canForward || busy) return;
+    if (onIntro) void goId(ids[0]!);
+    else void goId(ids[qIdx + 1]!);
   };
 
   const setItem = (id: string, patch: Partial<SurveyItemDraft>) => {
@@ -200,27 +233,41 @@ export function SurveyPanel({
       swipeRef.current = null;
       return;
     }
-    swipeRef.current = { x: e.clientX, y: e.clientY };
+    swipeRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onDockPointerMove = (e: ReactPointerEvent<HTMLFormElement>) => {
+    const start = swipeRef.current;
+    if (!start || start.id !== e.pointerId) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) <= Math.abs(dy)) {
+      setSwipeDx(0);
+      return;
+    }
+    setSwipeDx(clamp(dx, -SWIPE_MAX, SWIPE_MAX));
   };
 
   const onDockPointerUp = (e: ReactPointerEvent<HTMLFormElement>) => {
     const start = swipeRef.current;
     swipeRef.current = null;
-    if (!start || busy) return;
+    setSwipeDx(0);
+    if (!start || start.id !== e.pointerId || busy) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return;
-    if (dx < 0 && !last) void goId(ids[idx + 1]!);
-    if (dx > 0 && idx > 0) void goId(ids[idx - 1]!);
+    if (dx < 0) goForward();
+    else goBack();
   };
 
   const submit = async () => {
+    if (!hasInput || busy) return;
     const body = formToDraftV3(form, questions);
-    if (!body || busy) return;
     setBusy(true);
     setStatus(null);
     try {
-      await captureSlot(current.id);
+      if (!onIntro) await captureSlot(current.id);
       for (const q of questions) {
         if (!q.annotate) continue;
         if (!jpegRef.current[q.id]) await captureSlot(q.id);
@@ -247,6 +294,10 @@ export function SurveyPanel({
       });
       if (res.status === 403) {
         setStatus("Опросник выключен");
+        return;
+      }
+      if (res.status === 400) {
+        setStatus("Напишите комментарий или выберите Да/Нет");
         return;
       }
       if (!res.ok) {
@@ -348,64 +399,94 @@ export function SurveyPanel({
       />
       {open ? (
         <form
-          className="viewer-survey-dock"
+          className={
+            swipeDx !== 0
+              ? "viewer-survey-dock is-swiping"
+              : "viewer-survey-dock"
+          }
+          style={{ transform: `translateX(${swipeDx}px)` }}
           onSubmit={(e) => {
             e.preventDefault();
             if (last) void submit();
-            else void goId(ids[idx + 1]!);
+            else goForward();
           }}
           onPointerDown={onDockPointerDown}
+          onPointerMove={onDockPointerMove}
           onPointerUp={onDockPointerUp}
           onPointerCancel={() => {
             swipeRef.current = null;
+            setSwipeDx(0);
           }}
         >
-          <p className="viewer-survey-step">
-            {idx + 1} / {questions.length}
-          </p>
-          {instruction ? (
-            <p className="viewer-survey-hint">{instruction}</p>
-          ) : null}
-          <p className="viewer-survey-qtext">{current.text}</p>
-          {current.kind === "choice" ? (
-            <div className="viewer-survey-radios">
-              <label>
-                <input
-                  type="radio"
-                  name={`survey-${current.id}`}
-                  checked={row.status === "ok"}
-                  onChange={() => setItem(current.id, { status: "ok" as SurveyStatus })}
-                />
-                Да
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name={`survey-${current.id}`}
-                  checked={row.status === "not_ok"}
-                  onChange={() =>
-                    setItem(current.id, { status: "not_ok" as SurveyStatus })
-                  }
-                />
-                Нет
-              </label>
-            </div>
-          ) : null}
-          <textarea
-            value={row.comment}
-            onChange={(e) => setItem(current.id, { comment: e.target.value })}
-            rows={2}
-          />
-          <div className="viewer-survey-actions">
+          <div className="viewer-survey-grip" aria-hidden>
+            <span className="viewer-survey-grip-bar" />
+          </div>
+          <div className="viewer-survey-nav">
             <button
               type="button"
-              disabled={idx === 0 || busy}
-              onClick={() => void goId(ids[idx - 1]!)}
+              className="viewer-survey-chevron"
+              disabled={!canBack || busy}
+              aria-label="Назад"
+              onClick={goBack}
             >
+              ‹
+            </button>
+            <p className="viewer-survey-step">
+              {stepNum} / {stepCount}
+            </p>
+            <button
+              type="button"
+              className="viewer-survey-chevron"
+              disabled={!canForward || busy}
+              aria-label="Далее"
+              onClick={goForward}
+            >
+              ›
+            </button>
+          </div>
+          <p className="viewer-survey-swipe-hint">свайп ‹ ›</p>
+          {onIntro ? (
+            <p className="viewer-survey-intro">{instruction}</p>
+          ) : (
+            <>
+              <p className="viewer-survey-qtext">{current.text}</p>
+              {current.kind === "choice" ? (
+                <div className="viewer-survey-radios">
+                  <label>
+                    <input
+                      type="radio"
+                      name={`survey-${current.id}`}
+                      checked={row.status === "ok"}
+                      onChange={() => setItem(current.id, { status: "ok" as SurveyStatus })}
+                    />
+                    Да
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name={`survey-${current.id}`}
+                      checked={row.status === "not_ok"}
+                      onChange={() =>
+                        setItem(current.id, { status: "not_ok" as SurveyStatus })
+                      }
+                    />
+                    Нет
+                  </label>
+                </div>
+              ) : null}
+              <textarea
+                value={row.comment}
+                onChange={(e) => setItem(current.id, { comment: e.target.value })}
+                rows={2}
+              />
+            </>
+          )}
+          <div className="viewer-survey-actions">
+            <button type="button" disabled={!canBack || busy} onClick={goBack}>
               Назад
             </button>
             {last ? (
-              <button type="submit" disabled={!draft || busy}>
+              <button type="submit" disabled={!hasInput || busy}>
                 {busy ? "…" : "Отправить"}
               </button>
             ) : (

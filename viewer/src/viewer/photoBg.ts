@@ -1,5 +1,25 @@
 const MAX_EDGE = 1920;
 
+export const PHOTO_BG_FLAG = "formoPhotoBg";
+
+/** object-fit: contain — plane size in the same units as the view. */
+export function containPlaneSize(
+  viewW: number,
+  viewH: number,
+  imgW: number,
+  imgH: number,
+): { w: number; h: number } {
+  if (!(viewW > 0 && viewH > 0 && imgW > 0 && imgH > 0)) {
+    return { w: Math.max(viewW, 0), h: Math.max(viewH, 0) };
+  }
+  const viewAspect = viewW / viewH;
+  const imgAspect = imgW / imgH;
+  if (viewAspect > imgAspect) {
+    return { w: viewH * imgAspect, h: viewH };
+  }
+  return { w: viewW, h: viewW / imgAspect };
+}
+
 function lumaOfCanvas(ctx: CanvasRenderingContext2D, w: number, h: number): number {
   const sample = 64;
   const tmp = document.createElement("canvas");
@@ -17,30 +37,80 @@ function lumaOfCanvas(ctx: CanvasRenderingContext2D, w: number, h: number): numb
   return sum / n;
 }
 
+function loadHtmlImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image"));
+    };
+    img.src = url;
+  });
+}
+
+async function sourceFromFile(
+  file: File,
+): Promise<{ width: number; height: number; draw: CanvasImageSource; close?: () => void }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return {
+        width: bmp.width,
+        height: bmp.height,
+        draw: bmp,
+        close: () => bmp.close(),
+      };
+    } catch {
+      try {
+        const bmp = await createImageBitmap(file);
+        return {
+          width: bmp.width,
+          height: bmp.height,
+          draw: bmp,
+          close: () => bmp.close(),
+        };
+      } catch {
+        /* HTMLImage fallback */
+      }
+    }
+  }
+  const img = await loadHtmlImage(file);
+  return {
+    width: img.naturalWidth || img.width,
+    height: img.naturalHeight || img.height,
+    draw: img,
+  };
+}
+
 export async function readPhotoFile(
   file: File,
 ): Promise<{ url: string; luma: number }> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height, 1));
-  const w = Math.max(1, Math.round(bmp.width * scale));
-  const h = Math.max(1, Math.round(bmp.height * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    bmp.close();
-    throw new Error("canvas");
+  const src = await sourceFromFile(file);
+  try {
+    const scale = Math.min(1, MAX_EDGE / Math.max(src.width, src.height, 1));
+    const w = Math.max(1, Math.round(src.width * scale));
+    const h = Math.max(1, Math.round(src.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas");
+    ctx.drawImage(src.draw, 0, 0, w, h);
+    const luma = lumaOfCanvas(ctx, w, h);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("jpeg"))),
+        "image/jpeg",
+        0.82,
+      );
+    });
+    return { url: URL.createObjectURL(blob), luma };
+  } finally {
+    src.close?.();
   }
-  ctx.drawImage(bmp, 0, 0, w, h);
-  bmp.close();
-  const luma = lumaOfCanvas(ctx, w, h);
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("jpeg"))),
-      "image/jpeg",
-      0.82,
-    );
-  });
-  return { url: URL.createObjectURL(blob), luma };
 }

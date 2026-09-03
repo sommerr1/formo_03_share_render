@@ -71,17 +71,19 @@ export default async (req: Request, context: Context) => {
         try {
           const def = parseShareSurveyDef(JSON.parse(defRaw));
           if (def) {
+            let any = false;
             for (const q of def.questions) {
               const ans = body.items[q.id];
               if (!ans) return json({ error: "Invalid survey" }, 400);
-              if (
-                q.kind === "choice" &&
-                ans.status !== "ok" &&
-                ans.status !== "not_ok"
-              ) {
-                return json({ error: "Invalid survey" }, 400);
+              if (ans.status === "ok" || ans.status === "not_ok") any = true;
+              if (ans.comment.trim()) any = true;
+            }
+            if (!any) {
+              for (const v of Object.values(flags)) {
+                if (v) any = true;
               }
             }
+            if (!any) return json({ error: "Empty survey" }, 400);
           }
         } catch {
           /* no def — accept well-formed v3 */

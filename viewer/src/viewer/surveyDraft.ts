@@ -1,24 +1,26 @@
-import type { SurveyFormDraft, SurveySlot } from "./surveyTypes.js";
-import { SURVEY_ITEM_KEYS, SURVEY_SLOTS, emptySurveyForm } from "./surveyTypes.js";
+import type { SurveyItemDraft } from "./surveyTypes.js";
+import { emptyQuestionDraft } from "./surveyTypes.js";
 
 export type AnnotateOp =
   | { kind: "stroke"; points: Array<{ x: number; y: number }>; width: number }
   | { kind: "text"; x: number; y: number; text: string }
   | { kind: "symbol"; x: number; y: number; glyph: string };
 
-export type AnnotateBySlot = Record<SurveySlot, AnnotateOp[]>;
+export type AnnotateById = Record<string, AnnotateOp[]>;
 
 export type SurveyLocalDraft = {
-  v: 1;
-  form: SurveyFormDraft;
-  slot: SurveySlot;
-  annot: AnnotateBySlot;
+  v: 2;
+  form: Record<string, SurveyItemDraft>;
+  qid: string;
+  annot: AnnotateById;
 };
 
 const PREFIX = "formo.shareSurveyDraft.";
 
-export function emptyAnnot(): AnnotateBySlot {
-  return { dims: [], decor: [], facades: [], other: [] };
+export function emptyAnnot(ids: string[]): AnnotateById {
+  const out: AnnotateById = {};
+  for (const id of ids) out[id] = [];
+  return out;
 }
 
 function draftKey(token: string): string {
@@ -58,19 +60,47 @@ function isOp(v: unknown): v is AnnotateOp {
   return false;
 }
 
+function parseForm(raw: unknown): Record<string, SurveyItemDraft> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const out: Record<string, SurveyItemDraft> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== "object") continue;
+    const o = v as { status?: unknown; comment?: unknown };
+    if (typeof o.comment !== "string") continue;
+    const status =
+      o.status === "ok" || o.status === "not_ok" || o.status === null
+        ? o.status
+        : null;
+    out[id] = { status, comment: o.comment };
+  }
+  return out;
+}
+
 export function loadSurveyLocalDraft(token: string): SurveyLocalDraft | null {
   try {
     const raw = localStorage.getItem(draftKey(token));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as SurveyLocalDraft;
-    if (parsed.v !== 1 || !parsed.form || !parsed.annot) return null;
-    if (!SURVEY_SLOTS.includes(parsed.slot)) return null;
-    const annot = emptyAnnot();
-    for (const slot of SURVEY_SLOTS) {
-      const ops = parsed.annot[slot];
-      annot[slot] = Array.isArray(ops) ? ops.filter(isOp) : [];
+    const parsed = JSON.parse(raw) as {
+      v?: unknown;
+      form?: unknown;
+      qid?: unknown;
+      annot?: unknown;
+      slot?: unknown;
+    };
+    if (parsed.v === 2) {
+      const form = parseForm(parsed.form);
+      if (!form || typeof parsed.qid !== "string") return null;
+      const annot: AnnotateById = {};
+      if (parsed.annot && typeof parsed.annot === "object") {
+        for (const [id, ops] of Object.entries(
+          parsed.annot as Record<string, unknown>,
+        )) {
+          annot[id] = Array.isArray(ops) ? ops.filter(isOp) : [];
+        }
+      }
+      return { v: 2, form, qid: parsed.qid, annot };
     }
-    return { v: 1, form: parsed.form, slot: parsed.slot, annot };
+    return null;
   } catch {
     return null;
   }
@@ -81,19 +111,21 @@ export function saveSurveyLocalDraft(
   draft: Omit<SurveyLocalDraft, "v">,
 ): void {
   try {
-    const payload: SurveyLocalDraft = { v: 1, ...draft };
+    const payload: SurveyLocalDraft = { v: 2, ...draft };
     localStorage.setItem(draftKey(token), JSON.stringify(payload));
   } catch {
     /* quota / private mode */
   }
 }
 
-export function isBlankLocalDraft(draft: Omit<SurveyLocalDraft, "v">): boolean {
-  const { form, annot } = draft;
-  const itemsBlank = SURVEY_ITEM_KEYS.every((key) => {
-    const item = form.items[key];
+export function isBlankLocalDraft(
+  draft: Omit<SurveyLocalDraft, "v">,
+  ids: string[],
+): boolean {
+  const itemsBlank = ids.every((id) => {
+    const item = draft.form[id] ?? emptyQuestionDraft();
     return item.status === null && item.comment.trim().length === 0;
   });
-  const annotBlank = SURVEY_SLOTS.every((s) => annot[s].length === 0);
-  return itemsBlank && form.other.trim().length === 0 && annotBlank;
+  const annotBlank = ids.every((id) => (draft.annot[id] ?? []).length === 0);
+  return itemsBlank && annotBlank;
 }

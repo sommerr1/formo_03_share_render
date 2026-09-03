@@ -1,6 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { applyViewerToolFlags, siteBaseUrl } from "./meta.js";
-import { SURVEY_SLOTS, type SurveySlot } from "./survey.js";
+import { parseSurveySlot, SURVEY_SLOTS } from "./survey.js";
 import { parseToken } from "./tokens.js";
 import type { RenderAdmin, RenderListItem, RenderMeta } from "./types.js";
 
@@ -37,7 +37,11 @@ function adminKey(token: string): string {
   return `${token}.admin.json`;
 }
 
-function surveyImageKey(token: string, slot: SurveySlot): string {
+function surveyDefKey(token: string): string {
+  return `${token}.survey.def.json`;
+}
+
+function surveyImageKey(token: string, slot: string): string {
   return `${token}.survey.${slot}.jpg`;
 }
 
@@ -364,7 +368,7 @@ export async function putRenderSurvey(
 
 export async function getRenderSurveyImage(
   token: string,
-  slot: SurveySlot,
+  slot: string,
 ): Promise<ArrayBuffer | null> {
   const store = renderStore();
   return store.get(surveyImageKey(token, slot), { type: "arrayBuffer" });
@@ -372,7 +376,7 @@ export async function getRenderSurveyImage(
 
 export async function putRenderSurveyImage(
   token: string,
-  slot: SurveySlot,
+  slot: string,
   data: ArrayBuffer,
 ): Promise<void> {
   const store = renderStore();
@@ -381,20 +385,47 @@ export async function putRenderSurveyImage(
   });
 }
 
+export async function getRenderSurveyDef(
+  token: string,
+): Promise<string | null> {
+  const store = renderStore();
+  return store.get(surveyDefKey(token), { type: "text" });
+}
+
+export async function putRenderSurveyDef(
+  token: string,
+  json: string,
+): Promise<void> {
+  const store = renderStore();
+  await store.set(surveyDefKey(token), json, {
+    metadata: { contentType: "application/json" },
+  });
+}
+
 export async function listSurveyImageFlags(
   token: string,
-): Promise<Partial<Record<SurveySlot, true>>> {
-  const images: Partial<Record<SurveySlot, true>> = {};
-  for (const slot of SURVEY_SLOTS) {
-    const buf = await getRenderSurveyImage(token, slot);
-    if (buf && buf.byteLength > 0) images[slot] = true;
+): Promise<Record<string, true>> {
+  const store = renderStore();
+  const images: Record<string, true> = {};
+  const prefix = `${token}.survey.`;
+  try {
+    const { blobs } = await store.list({ prefix });
+    for (const item of blobs) {
+      if (!item.key.startsWith(prefix) || !item.key.endsWith(".jpg")) continue;
+      const id = item.key.slice(prefix.length, -".jpg".length);
+      if (parseSurveySlot(id)) images[id] = true;
+    }
+  } catch {
+    /* list unsupported — leave empty */
   }
   return images;
 }
 
 async function deleteRenderSurveyImages(token: string): Promise<void> {
   const store = renderStore();
-  for (const slot of SURVEY_SLOTS) {
+  const flags = await listSurveyImageFlags(token);
+  const ids = new Set([...Object.keys(flags), ...SURVEY_SLOTS]);
+  for (const slot of ids) {
     await store.delete(surveyImageKey(token, slot));
   }
 }
@@ -405,6 +436,7 @@ export async function deleteRender(token: string): Promise<void> {
   await store.delete(metaKey(token));
   await store.delete(overlayKey(token));
   await store.delete(surveyKey(token));
+  await store.delete(surveyDefKey(token));
   await store.delete(adminKey(token));
   await deleteRenderSurveyImages(token);
   await deleteUploadArtifacts(token);

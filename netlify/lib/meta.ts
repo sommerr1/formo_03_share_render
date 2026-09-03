@@ -8,6 +8,11 @@ export const VIEWER_TOOL_META_KEYS = [
   "dimsEnabled",
   "xrayEnabled",
   "freezeEnabled",
+  "overflowEnabled",
+  "glbArEnabled",
+  "bgPhotoEnabled",
+  "satEnabled",
+  "fillersToggleEnabled",
   "annotateEnabled",
 ] as const;
 

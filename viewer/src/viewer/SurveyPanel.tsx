@@ -5,24 +5,21 @@ import {
   type AnnotateLayerHandle,
   type AnnotateTool,
 } from "./AnnotateLayer.js";
+import { parseShareSurveyDef, seedSurveyDef, type ShareSurveyDef } from "./surveyDef.js";
 import {
   emptyAnnot,
   isBlankLocalDraft,
   loadSurveyLocalDraft,
   saveSurveyLocalDraft,
-  type AnnotateBySlot,
+  type AnnotateById,
   type AnnotateOp,
 } from "./surveyDraft.js";
 import {
-  SURVEY_ITEM_KEYS,
-  SURVEY_SLOTS,
-  SURVEY_SLOT_QUESTIONS,
-  emptySurveyForm,
-  formToDraft,
+  emptyQuestionDraft,
+  formToDraftV3,
   parseShareSurvey,
-  surveyToForm,
-  type SurveyFormDraft,
-  type SurveySlot,
+  surveyToQuestionDrafts,
+  type SurveyItemDraft,
   type SurveyStatus,
 } from "./surveyTypes.js";
 
@@ -36,8 +33,10 @@ type Props = {
 
 const SWIPE_PX = 48;
 
-function slotIndex(slot: SurveySlot): number {
-  return SURVEY_SLOTS.indexOf(slot);
+function emptyForm(ids: string[]): Record<string, SurveyItemDraft> {
+  const out: Record<string, SurveyItemDraft> = {};
+  for (const id of ids) out[id] = emptyQuestionDraft();
+  return out;
 }
 
 export function SurveyPanel({
@@ -47,40 +46,75 @@ export function SurveyPanel({
   glCanvasRef,
   annotateEnabled = true,
 }: Props) {
-  const [form, setForm] = useState<SurveyFormDraft>(() => emptySurveyForm());
-  const [slot, setSlot] = useState<SurveySlot>("dims");
-  const [annot, setAnnot] = useState<AnnotateBySlot>(() => emptyAnnot());
-  const [undone, setUndone] = useState<AnnotateBySlot>(() => emptyAnnot());
+  const [def, setDef] = useState<ShareSurveyDef>(() => seedSurveyDef());
+  const [form, setForm] = useState<Record<string, SurveyItemDraft>>(() =>
+    emptyForm(seedSurveyDef().questions.map((q) => q.id)),
+  );
+  const [qid, setQid] = useState(seedSurveyDef().questions[0]!.id);
+  const [annot, setAnnot] = useState<AnnotateById>(() =>
+    emptyAnnot(seedSurveyDef().questions.map((q) => q.id)),
+  );
+  const [undone, setUndone] = useState<AnnotateById>(() => ({}));
   const [tool, setTool] = useState<AnnotateTool | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const layerRef = useRef<AnnotateLayerHandle>(null);
-  const jpegRef = useRef<Partial<Record<SurveySlot, Blob>>>({});
+  const jpegRef = useRef<Record<string, Blob>>({});
   const annotRef = useRef(annot);
   annotRef.current = annot;
   const swipeRef = useRef<{ x: number; y: number } | null>(null);
 
   const [ready, setReady] = useState(false);
+  const questions = def.questions;
+  const ids = questions.map((q) => q.id);
+  const idx = Math.max(0, ids.indexOf(qid));
+  const current = questions[idx] ?? questions[0]!;
+  const last = idx === questions.length - 1;
+  const qAnnotate = annotateEnabled && current.annotate;
+  const instruction = def.instruction.trim();
 
   useEffect(() => {
     let revoked = false;
     setReady(false);
-    const local = loadSurveyLocalDraft(token);
-    if (local) {
-      setForm(local.form);
-      setSlot(local.slot);
-      setAnnot(local.annot);
-    }
     (async () => {
+      let nextDef = seedSurveyDef();
+      try {
+        const defRes = await fetch(
+          `/api/models/${encodeURIComponent(token)}/survey/def`,
+        );
+        if (defRes.ok) {
+          const parsed = parseShareSurveyDef(await defRes.json());
+          if (parsed) nextDef = parsed;
+        }
+      } catch {
+        /* seed */
+      }
+      if (revoked) return;
+      const nextIds = nextDef.questions.map((q) => q.id);
+      setDef(nextDef);
+
+      const local = loadSurveyLocalDraft(token);
+      let nextForm = emptyForm(nextIds);
+      let nextQid = nextIds[0]!;
+      let nextAnnot = emptyAnnot(nextIds);
+      if (local) {
+        nextForm = { ...nextForm, ...local.form };
+        if (nextIds.includes(local.qid)) nextQid = local.qid;
+        nextAnnot = { ...nextAnnot, ...local.annot };
+      }
+      setForm(nextForm);
+      setQid(nextQid);
+      setAnnot(nextAnnot);
+
       try {
         const res = await fetch(`/api/models/${encodeURIComponent(token)}/survey`);
         if (res.status === 404) return;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const parsed = parseShareSurvey(await res.json());
         if (revoked || !parsed) return;
-        const current = loadSurveyLocalDraft(token);
-        if (!current || isBlankLocalDraft(current)) {
-          setForm(surveyToForm(parsed));
+        const currentDraft = loadSurveyLocalDraft(token);
+        if (!currentDraft || isBlankLocalDraft(currentDraft, nextIds)) {
+          setForm(surveyToQuestionDrafts(parsed, nextIds));
         }
       } catch {
         if (!revoked) setStatus("Не удалось загрузить ответы");
@@ -95,41 +129,41 @@ export function SurveyPanel({
 
   useEffect(() => {
     if (!ready) return;
-    saveSurveyLocalDraft(token, { form, slot, annot });
-  }, [ready, token, form, slot, annot]);
+    saveSurveyLocalDraft(token, { form, qid, annot });
+  }, [ready, token, form, qid, annot]);
 
-  const capturing = open && frozen && annotateEnabled && tool != null;
-  const draft = formToDraft(form);
-  const idx = slotIndex(slot);
-  const last = idx === SURVEY_SLOTS.length - 1;
-  const question = SURVEY_SLOT_QUESTIONS[slot];
+  const capturing = open && frozen && qAnnotate && tool != null;
+  const draft = formToDraftV3(form, questions);
 
   const toggleTool = (next: AnnotateTool) => {
     setTool((cur) => (cur === next ? null : next));
   };
 
   const setOps = (ops: AnnotateOp[]) => {
-    setAnnot((cur) => ({ ...cur, [slot]: ops }));
-    setUndone((cur) => ({ ...cur, [slot]: [] }));
+    setAnnot((cur) => ({ ...cur, [current.id]: ops }));
+    setUndone((cur) => ({ ...cur, [current.id]: [] }));
   };
 
   const undo = () => {
-    const ops = annot[slot];
+    const ops = annot[current.id] ?? [];
     if (ops.length === 0) return;
-    const lastOp = ops[ops.length - 1];
-    setAnnot({ ...annot, [slot]: ops.slice(0, -1) });
-    setUndone({ ...undone, [slot]: [...undone[slot], lastOp] });
+    const lastOp = ops[ops.length - 1]!;
+    setAnnot({ ...annot, [current.id]: ops.slice(0, -1) });
+    setUndone({
+      ...undone,
+      [current.id]: [...(undone[current.id] ?? []), lastOp],
+    });
   };
 
   const redo = () => {
-    const stack = undone[slot];
+    const stack = undone[current.id] ?? [];
     if (stack.length === 0) return;
-    const op = stack[stack.length - 1];
-    setUndone({ ...undone, [slot]: stack.slice(0, -1) });
-    setAnnot({ ...annot, [slot]: [...annot[slot], op] });
+    const op = stack[stack.length - 1]!;
+    setUndone({ ...undone, [current.id]: stack.slice(0, -1) });
+    setAnnot({ ...annot, [current.id]: [...(annot[current.id] ?? []), op] });
   };
 
-  const captureSlot = async (target: SurveySlot): Promise<void> => {
+  const captureSlot = async (target: string): Promise<void> => {
     const gl = glCanvasRef.current;
     const overlay = layerRef.current?.canvas();
     const wrap = overlay?.parentElement;
@@ -137,7 +171,7 @@ export function SurveyPanel({
     try {
       jpegRef.current[target] = await exportAnnotateJpeg(
         gl,
-        annotRef.current[target],
+        annotRef.current[target] ?? [],
         wrap.clientWidth,
         wrap.clientHeight,
       );
@@ -146,19 +180,16 @@ export function SurveyPanel({
     }
   };
 
-  const goSlot = async (next: SurveySlot) => {
-    await captureSlot(slot);
-    setSlot(next);
+  const goId = async (next: string) => {
+    await captureSlot(current.id);
+    setQid(next);
     setStatus(null);
   };
 
-  const setItem = (
-    key: (typeof SURVEY_ITEM_KEYS)[number],
-    patch: Partial<SurveyFormDraft["items"]["dims"]>,
-  ) => {
+  const setItem = (id: string, patch: Partial<SurveyItemDraft>) => {
     setForm((cur) => ({
       ...cur,
-      items: { ...cur.items, [key]: { ...cur.items[key], ...patch } },
+      [id]: { ...(cur[id] ?? emptyQuestionDraft()), ...patch },
     }));
     setStatus(null);
   };
@@ -179,33 +210,31 @@ export function SurveyPanel({
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return;
-    if (dx < 0 && !last) void goSlot(SURVEY_SLOTS[idx + 1]);
-    if (dx > 0 && idx > 0) void goSlot(SURVEY_SLOTS[idx - 1]);
+    if (dx < 0 && !last) void goId(ids[idx + 1]!);
+    if (dx > 0 && idx > 0) void goId(ids[idx - 1]!);
   };
 
   const submit = async () => {
-    const body = formToDraft(form);
+    const body = formToDraftV3(form, questions);
     if (!body || busy) return;
     setBusy(true);
     setStatus(null);
     try {
-      await captureSlot(slot);
-      for (const s of SURVEY_SLOTS) {
-        if (!jpegRef.current[s]) await captureSlot(s);
-        const blob = jpegRef.current[s];
+      await captureSlot(current.id);
+      for (const q of questions) {
+        if (!q.annotate) continue;
+        if (!jpegRef.current[q.id]) await captureSlot(q.id);
+        const blob = jpegRef.current[q.id];
         if (!blob) continue;
         const res = await fetch(
-          `/api/models/${encodeURIComponent(token)}/survey/image/${s}`,
+          `/api/models/${encodeURIComponent(token)}/survey/image/${q.id}`,
           {
             method: "PUT",
             headers: { "Content-Type": "image/jpeg" },
             body: blob,
           },
         );
-        if (res.status === 403) {
-          setStatus("Опросник выключен");
-          return;
-        }
+        if (res.status === 403) continue;
         if (!res.ok) {
           setStatus(`Ошибка картинки (${res.status})`);
           return;
@@ -225,7 +254,7 @@ export function SurveyPanel({
         return;
       }
       const parsed = parseShareSurvey(await res.json());
-      if (parsed) setForm(surveyToForm(parsed));
+      if (parsed) setForm(surveyToQuestionDrafts(parsed, ids));
       setStatus("Отправлено");
     } catch {
       setStatus("Ошибка сети");
@@ -234,13 +263,13 @@ export function SurveyPanel({
     }
   };
 
-  const comment =
-    slot === "other" ? form.other : form.items[slot].comment;
-  const itemStatus = slot === "other" ? null : form.items[slot].status;
+  const row = form[current.id] ?? emptyQuestionDraft();
+  const ops = annot[current.id] ?? [];
+  const undoneOps = undone[current.id] ?? [];
 
   return (
     <>
-      {open && annotateEnabled ? (
+      {open && qAnnotate ? (
         <div className="viewer-annotate" role="toolbar" aria-label="Пометки">
           <button
             type="button"
@@ -301,21 +330,21 @@ export function SurveyPanel({
               />
             </svg>
           </button>
-          <button type="button" title="Отменить" disabled={annot[slot].length === 0} onClick={undo}>
+          <button type="button" title="Отменить" disabled={ops.length === 0} onClick={undo}>
             ↩
           </button>
-          <button type="button" title="Повторить" disabled={undone[slot].length === 0} onClick={redo}>
+          <button type="button" title="Повторить" disabled={undoneOps.length === 0} onClick={redo}>
             ↪
           </button>
         </div>
       ) : null}
       <AnnotateLayer
         ref={layerRef}
-        ops={annot[slot]}
+        ops={ops}
         onChange={setOps}
         tool={tool ?? "pen"}
         capturing={capturing}
-        visible={open}
+        visible={open && qAnnotate}
       />
       {open ? (
         <form
@@ -323,7 +352,7 @@ export function SurveyPanel({
           onSubmit={(e) => {
             e.preventDefault();
             if (last) void submit();
-            else void goSlot(SURVEY_SLOTS[idx + 1]);
+            else void goId(ids[idx + 1]!);
           }}
           onPointerDown={onDockPointerDown}
           onPointerUp={onDockPointerUp}
@@ -332,27 +361,30 @@ export function SurveyPanel({
           }}
         >
           <p className="viewer-survey-step">
-            {idx + 1} / {SURVEY_SLOTS.length}
+            {idx + 1} / {questions.length}
           </p>
-          <p className="viewer-survey-qtext">{question}</p>
-          {slot !== "other" ? (
+          {instruction ? (
+            <p className="viewer-survey-hint">{instruction}</p>
+          ) : null}
+          <p className="viewer-survey-qtext">{current.text}</p>
+          {current.kind === "choice" ? (
             <div className="viewer-survey-radios">
               <label>
                 <input
                   type="radio"
-                  name={`survey-${slot}`}
-                  checked={itemStatus === "ok"}
-                  onChange={() => setItem(slot, { status: "ok" as SurveyStatus })}
+                  name={`survey-${current.id}`}
+                  checked={row.status === "ok"}
+                  onChange={() => setItem(current.id, { status: "ok" as SurveyStatus })}
                 />
                 Да
               </label>
               <label>
                 <input
                   type="radio"
-                  name={`survey-${slot}`}
-                  checked={itemStatus === "not_ok"}
+                  name={`survey-${current.id}`}
+                  checked={row.status === "not_ok"}
                   onChange={() =>
-                    setItem(slot, { status: "not_ok" as SurveyStatus })
+                    setItem(current.id, { status: "not_ok" as SurveyStatus })
                   }
                 />
                 Нет
@@ -360,22 +392,15 @@ export function SurveyPanel({
             </div>
           ) : null}
           <textarea
-            value={comment}
-            onChange={(e) => {
-              if (slot === "other") {
-                setForm((cur) => ({ ...cur, other: e.target.value }));
-              } else {
-                setItem(slot, { comment: e.target.value });
-              }
-              setStatus(null);
-            }}
+            value={row.comment}
+            onChange={(e) => setItem(current.id, { comment: e.target.value })}
             rows={2}
           />
           <div className="viewer-survey-actions">
             <button
               type="button"
               disabled={idx === 0 || busy}
-              onClick={() => void goSlot(SURVEY_SLOTS[idx - 1])}
+              onClick={() => void goId(ids[idx - 1]!)}
             >
               Назад
             </button>

@@ -3,10 +3,12 @@ import { json, options, withCors } from "../lib/cors.js";
 import { isExpired } from "../lib/meta.js";
 import {
   getRenderMeta,
+  getRenderSurveyDef,
   getRenderSurveyImage,
   putRenderSurveyImage,
 } from "../lib/store.js";
 import { isJpegBytes, parseSurveySlot } from "../lib/survey.js";
+import { parseShareSurveyDef } from "../lib/surveyDef.js";
 import { parseToken } from "../lib/tokens.js";
 
 export const MAX_SURVEY_IMAGE_BYTES = 400 * 1024;
@@ -39,6 +41,21 @@ export default async (req: Request, context: Context) => {
   if (req.method === "PUT") {
     if (meta.surveyEnabled !== true) {
       return json({ error: "Survey disabled" }, 403);
+    }
+    if (meta.annotateEnabled === false) {
+      return json({ error: "Annotate disabled" }, 403);
+    }
+    const defRaw = await getRenderSurveyDef(token);
+    if (defRaw) {
+      try {
+        const def = parseShareSurveyDef(JSON.parse(defRaw));
+        const q = def?.questions.find((item) => item.id === slot);
+        if (!q || !q.annotate) {
+          return json({ error: "Annotate disabled" }, 403);
+        }
+      } catch {
+        /* no usable def */
+      }
     }
     const buf = await req.arrayBuffer();
     if (buf.byteLength > MAX_SURVEY_IMAGE_BYTES) {

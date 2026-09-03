@@ -4,14 +4,17 @@ import { isExpired } from "../lib/meta.js";
 import {
   getRenderMeta,
   getRenderSurvey,
+  getRenderSurveyDef,
   listSurveyImageFlags,
   putRenderSurvey,
 } from "../lib/store.js";
 import {
   isSurveyDraft,
+  isSurveyDraftV3,
   parseShareSurvey,
   type ShareSurvey,
 } from "../lib/survey.js";
+import { parseShareSurveyDef } from "../lib/surveyDef.js";
 import { parseToken } from "../lib/tokens.js";
 
 const MAX_SURVEY_BYTES = 16 * 1024;
@@ -52,11 +55,52 @@ export default async (req: Request, context: Context) => {
     } catch {
       return json({ error: "Invalid JSON" }, 400);
     }
+
+    const submittedAt = new Date().toISOString();
+    const flags = await listSurveyImageFlags(token);
+    const imagesV12 = {
+      ...(flags.dims ? { dims: true as const } : {}),
+      ...(flags.decor ? { decor: true as const } : {}),
+      ...(flags.facades ? { facades: true as const } : {}),
+      ...(flags.other ? { other: true as const } : {}),
+    };
+
+    if (isSurveyDraftV3(body)) {
+      const defRaw = await getRenderSurveyDef(token);
+      if (defRaw) {
+        try {
+          const def = parseShareSurveyDef(JSON.parse(defRaw));
+          if (def) {
+            for (const q of def.questions) {
+              const ans = body.items[q.id];
+              if (!ans) return json({ error: "Invalid survey" }, 400);
+              if (
+                q.kind === "choice" &&
+                ans.status !== "ok" &&
+                ans.status !== "not_ok"
+              ) {
+                return json({ error: "Invalid survey" }, 400);
+              }
+            }
+          }
+        } catch {
+          /* no def — accept well-formed v3 */
+        }
+      }
+      const stored: ShareSurvey = {
+        schemaVersion: 3,
+        submittedAt,
+        items: body.items,
+        images: flags,
+      };
+      await putRenderSurvey(token, JSON.stringify(stored));
+      return json(stored);
+    }
+
     if (!isSurveyDraft(body)) {
       return json({ error: "Invalid survey" }, 400);
     }
 
-    const submittedAt = new Date().toISOString();
     const stored: ShareSurvey =
       body.schemaVersion === 2
         ? {
@@ -64,7 +108,7 @@ export default async (req: Request, context: Context) => {
             submittedAt,
             items: body.items,
             other: body.other,
-            images: await listSurveyImageFlags(token),
+            images: imagesV12,
           }
         : {
             schemaVersion: 1,

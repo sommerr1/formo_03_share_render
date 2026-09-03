@@ -6,6 +6,11 @@ export type RenderMeta = {
   dimsEnabled?: boolean;
   xrayEnabled?: boolean;
   freezeEnabled?: boolean;
+  overflowEnabled?: boolean;
+  glbArEnabled?: boolean;
+  bgPhotoEnabled?: boolean;
+  satEnabled?: boolean;
+  fillersToggleEnabled?: boolean;
   annotateEnabled?: boolean;
 };
 

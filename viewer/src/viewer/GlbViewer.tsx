@@ -3,6 +3,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { Bounds, OrbitControls, useGLTF } from "@react-three/drei";
 import {
   ACESFilmicToneMapping,
+  LinearToneMapping,
   SRGBColorSpace,
   type CanvasTexture,
   type Material,
@@ -17,6 +18,7 @@ import {
   sceneHasFillersGroup,
 } from "./exportArGlb.js";
 import {
+  applyPhotoLook,
   applySaturation,
   exposureFromLuma,
   STUDIO_FILL_COLOR,
@@ -107,6 +109,13 @@ function SaturationSync({ root, on }: { root: Object3D; on: boolean }) {
   return null;
 }
 
+function PhotoLookSync({ root, on }: { root: Object3D; on: boolean }) {
+  useLayoutEffect(() => {
+    applyPhotoLook(root, on);
+  }, [root, on]);
+  return null;
+}
+
 function SceneContent({
   url,
   overlay,
@@ -116,6 +125,7 @@ function SceneContent({
   xRay,
   frozen,
   satOn,
+  photoOn,
   sceneRootRef,
   onHasFillers,
 }: {
@@ -127,6 +137,7 @@ function SceneContent({
   xRay: boolean;
   frozen: boolean;
   satOn: boolean;
+  photoOn: boolean;
   sceneRootRef: MutableRefObject<Object3D | null>;
   onHasFillers: (v: boolean) => void;
 }) {
@@ -153,6 +164,7 @@ function SceneContent({
           />
           <FillerVisibility root={cloned} showFillers={showFillers} />
           <SaturationSync root={cloned} on={satOn} />
+          <PhotoLookSync root={cloned} on={photoOn} />
           {overlay ? (
             <AnimLayer
               root={cloned}
@@ -179,15 +191,17 @@ function XRaySceneSync({ xRay }: { xRay: boolean }) {
 
 function GlCanvasBind({
   target,
+  photoOn,
 }: {
   target: MutableRefObject<HTMLCanvasElement | null>;
+  photoOn: boolean;
 }) {
   const { gl } = useThree();
   useLayoutEffect(() => {
     target.current = gl.domElement;
     gl.outputColorSpace = SRGBColorSpace;
-    gl.toneMapping = ACESFilmicToneMapping;
-  }, [gl, target]);
+    gl.toneMapping = photoOn ? LinearToneMapping : ACESFilmicToneMapping;
+  }, [gl, target, photoOn]);
   return null;
 }
 
@@ -440,14 +454,14 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
         ) : (
           <color attach="background" args={["#1a1d24"]} />
         )}
-        <ambientLight intensity={0.35 * lightK} color="#ffffff" />
+        <ambientLight intensity={(photoUrl ? 0.7 : 0.35) * lightK} color="#ffffff" />
         <directionalLight
-          intensity={1.1 * lightK}
+          intensity={(photoUrl ? 0.42 : 1.1) * lightK}
           color={STUDIO_KEY_COLOR}
           position={[6, 10, 5]}
         />
         <directionalLight
-          intensity={0.35 * lightK}
+          intensity={(photoUrl ? 0.32 : 0.35) * lightK}
           color={STUDIO_FILL_COLOR}
           position={[-5, 4, -3]}
         />
@@ -460,10 +474,11 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
           xRay={xRay}
           frozen={frozen}
           satOn={satOn}
+          photoOn={photoUrl != null}
           sceneRootRef={sceneRootRef}
           onHasFillers={setHasFillers}
         />
-        <GlCanvasBind target={glCanvasRef} />
+        <GlCanvasBind target={glCanvasRef} photoOn={photoUrl != null} />
         <OrbitControls makeDefault enableDamping enabled={!frozen} />
       </Canvas>
     </div>

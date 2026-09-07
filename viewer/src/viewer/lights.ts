@@ -29,3 +29,29 @@ export function applySaturation(root: Object3D, on: boolean): void {
     }
   });
 }
+
+export function applyPhotoLook(root: Object3D, on: boolean): void {
+  root.traverse((obj) => {
+    const mesh = obj as Mesh;
+    if (!mesh.isMesh) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      const std = mat as MeshStandardMaterial;
+      if (typeof std.roughness !== "number") continue;
+      const data = std.userData as {
+        formoBaseRough?: number;
+        formoBaseEnv?: number;
+      };
+      if (data.formoBaseRough == null) data.formoBaseRough = std.roughness;
+      if (data.formoBaseEnv == null) data.formoBaseEnv = std.envMapIntensity ?? 1;
+      if (on) {
+        std.roughness = Math.min(1, data.formoBaseRough + 0.2);
+        std.envMapIntensity = data.formoBaseEnv * 0.25;
+      } else {
+        std.roughness = data.formoBaseRough;
+        std.envMapIntensity = data.formoBaseEnv;
+      }
+      std.needsUpdate = true;
+    }
+  });
+}

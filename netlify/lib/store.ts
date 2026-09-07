@@ -142,16 +142,20 @@ export async function waitForUploadSession(
 
 export async function waitForRenderMeta(
   token: string,
+  pred?: (meta: RenderMeta) => boolean,
 ): Promise<RenderMeta | null> {
-  const waitsMs = [0, 250, 500, 1000, 2000];
+  const waitsMs = [0, 250, 500, 1000, 2000, 4000];
+  let last: RenderMeta | null = null;
   for (const wait of waitsMs) {
     if (wait > 0) {
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
     const meta = await getRenderMeta(token);
-    if (meta) return meta;
+    if (!meta) continue;
+    last = meta;
+    if (!pred || pred(meta)) return meta;
   }
-  return null;
+  return last;
 }
 
 export async function putUploadPart(

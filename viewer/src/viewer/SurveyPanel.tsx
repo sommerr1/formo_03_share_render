@@ -33,7 +33,7 @@ type Props = {
 };
 
 const INTRO_ID = "__intro";
-const SWIPE_PX = 36;
+const SWIPE_PX = 28;
 const SWIPE_MAX = 80;
 
 function emptyForm(ids: string[]): Record<string, SurveyItemDraft> {
@@ -70,6 +70,7 @@ export function SurveyPanel({
   const jpegRef = useRef<Record<string, Blob>>({});
   const annotRef = useRef(annot);
   annotRef.current = annot;
+  const dockRef = useRef<HTMLFormElement>(null);
   const swipeRef = useRef<{
     x: number;
     y: number;
@@ -158,6 +159,11 @@ export function SurveyPanel({
     if (!hasIntro && qid === INTRO_ID && questions[0]) setQid(questions[0].id);
   }, [hasIntro, qid, questions]);
 
+  useEffect(() => {
+    if (open && annotateEnabled) setTool("pen");
+    else if (!open) setTool(null);
+  }, [open, annotateEnabled]);
+
   const capturing = open && frozen && qAnnotate && tool != null;
 
   const toggleTool = (next: AnnotateTool) => {
@@ -224,6 +230,81 @@ export function SurveyPanel({
     else void goId(ids[qIdx + 1]!);
   };
 
+  const navRef = useRef({ goBack, goForward, busy });
+  navRef.current = { goBack, goForward, busy };
+
+  useEffect(() => {
+    const el = dockRef.current;
+    if (!el || !open) return;
+    const start = { x: 0, y: 0, locked: false, active: false };
+
+    const ignore = (target: EventTarget | null): boolean => {
+      const n = target as HTMLElement | null;
+      return !!n?.closest?.("textarea, button");
+    };
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || ignore(e.target)) {
+        start.active = false;
+        return;
+      }
+      e.stopPropagation();
+      const t = e.touches[0]!;
+      start.x = t.clientX;
+      start.y = t.clientY;
+      start.locked = false;
+      start.active = true;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!start.active || e.touches.length !== 1) return;
+      const t = e.touches[0]!;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (!start.locked) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) <= Math.abs(dy) * 1.05) {
+          start.active = false;
+          setSwipeDx(0);
+          return;
+        }
+        start.locked = true;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      setSwipeDx(clamp(dx, -SWIPE_MAX, SWIPE_MAX));
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      if (!start.active) return;
+      const t = e.changedTouches[0];
+      const dx = t ? t.clientX - start.x : 0;
+      const locked = start.locked;
+      start.active = false;
+      setSwipeDx(0);
+      if (!locked || navRef.current.busy) return;
+      if (Math.abs(dx) < SWIPE_PX) return;
+      if (dx < 0) navRef.current.goForward();
+      else navRef.current.goBack();
+    };
+
+    const onCancel = () => {
+      start.active = false;
+      setSwipeDx(0);
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true, capture: true });
+    el.addEventListener("touchmove", onMove, { passive: false, capture: true });
+    el.addEventListener("touchend", onEnd, { capture: true });
+    el.addEventListener("touchcancel", onCancel, { capture: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart, true);
+      el.removeEventListener("touchmove", onMove, true);
+      el.removeEventListener("touchend", onEnd, true);
+      el.removeEventListener("touchcancel", onCancel, true);
+    };
+  }, [open]);
+
   const setItem = (id: string, patch: Partial<SurveyItemDraft>) => {
     setForm((cur) => ({
       ...cur,
@@ -233,6 +314,7 @@ export function SurveyPanel({
   };
 
   const onDockPointerDown = (e: ReactPointerEvent<HTMLFormElement>) => {
+    if (e.pointerType === "touch") return;
     if (e.button !== 0) return;
     const t = e.target as HTMLElement;
     if (t.closest("textarea, button")) {
@@ -248,6 +330,7 @@ export function SurveyPanel({
   };
 
   const onDockPointerMove = (e: ReactPointerEvent<HTMLFormElement>) => {
+    if (e.pointerType === "touch") return;
     const start = swipeRef.current;
     if (!start || start.id !== e.pointerId) return;
     const dx = e.clientX - start.x;
@@ -267,6 +350,7 @@ export function SurveyPanel({
   };
 
   const onDockPointerUp = (e: ReactPointerEvent<HTMLFormElement>) => {
+    if (e.pointerType === "touch") return;
     const start = swipeRef.current;
     swipeRef.current = null;
     setSwipeDx(0);
@@ -415,6 +499,7 @@ export function SurveyPanel({
       />
       {open ? (
         <form
+          ref={dockRef}
           className={
             swipeDx !== 0
               ? "viewer-survey-dock is-swiping"

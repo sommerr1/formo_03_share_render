@@ -37,7 +37,10 @@ export default async (req: Request, context: Context) => {
     const denied = requireAdmin(req);
     if (denied) return denied;
 
-    const meta = await waitForRenderMeta(token);
+    const meta = await waitForRenderMeta(
+      token,
+      (m) => m.surveyEnabled === true,
+    );
     if (!meta || isExpired(meta)) return json({ error: "Not found" }, 404);
     if (meta.surveyEnabled !== true) {
       return json({ error: "Survey disabled" }, 403);

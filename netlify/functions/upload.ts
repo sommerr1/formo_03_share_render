@@ -38,7 +38,12 @@ export default async (req: Request, _context: Context) => {
   const createdAt = new Date().toISOString();
   const glb = await file.arrayBuffer();
 
-  await putRender(token, glb, { createdAt, expiresAt });
+  await putRender(token, glb, {
+    createdAt,
+    expiresAt,
+    fileSizeBytes: glb.byteLength,
+    totalChunks: 1,
+  });
 
   const body: UploadResponse = {
     token,

@@ -1,3 +1,12 @@
+export const DEFAULT_SHARE_BG_COLOR = "#1a1d24";
+
+export function resolveShareBgColor(meta: { bgColor?: unknown }): string {
+  if (typeof meta.bgColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(meta.bgColor)) {
+    return meta.bgColor;
+  }
+  return DEFAULT_SHARE_BG_COLOR;
+}
+
 export type ShareViewerTools = {
   facades: boolean;
   dims: boolean;

@@ -15,6 +15,8 @@ type Props = {
   showBgPhoto: boolean;
   showSat: boolean;
   showFillersToggle: boolean;
+  bgColor: string;
+  onBgColor: (color: string) => void;
 };
 
 export function OverflowMenu({
@@ -32,6 +34,8 @@ export function OverflowMenu({
   showBgPhoto,
   showSat,
   showFillersToggle,
+  bgColor,
+  onBgColor,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -102,6 +106,16 @@ export function OverflowMenu({
           ) : null}
           {showBgPhoto ? (
           <>
+          <label className="viewer-overflow-color" role="menuitem">
+            <span>Цвет фона</span>
+            <input
+              type="color"
+              value={bgColor}
+              disabled={hasPhoto}
+              title={hasPhoto ? "Уберите фото, чтобы сменить цвет" : "Цвет фона"}
+              onChange={(e) => onBgColor(e.target.value)}
+            />
+          </label>
           <button
             type="button"
             role="menuitem"

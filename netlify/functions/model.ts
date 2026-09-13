@@ -2,14 +2,17 @@ import type { Config, Context } from "@netlify/functions";
 import { requireAdmin } from "../lib/auth.js";
 import { json, options } from "../lib/cors.js";
 import {
+  applyMetaScalars,
   applyViewerToolFlags,
   isExpired,
+  parseBgColor,
   parseExpiresAtJson,
   VIEWER_TOOL_META_KEYS,
 } from "../lib/meta.js";
 import {
   deleteRender,
   getRenderAdmin,
+  getRenderFileSize,
   getRenderMeta,
   getRenderSurvey,
   mergeAdminPatch,
@@ -34,8 +37,11 @@ export default async (req: Request, context: Context) => {
     const surveySubmittedAt = surveySubmittedAtFromRaw(
       await getRenderSurvey(token),
     );
+    const fileSizeBytes =
+      meta.fileSizeBytes ?? (await getRenderFileSize(token)) ?? undefined;
     return json({
       ...meta,
+      ...(fileSizeBytes != null ? { fileSizeBytes } : {}),
       ...(surveySubmittedAt ? { surveySubmittedAt } : {}),
     });
   }
@@ -59,6 +65,7 @@ export default async (req: Request, context: Context) => {
     }
     const rec = body as Record<string, unknown>;
     const hasExpiry = "expiresAt" in rec;
+    const hasBgColor = "bgColor" in rec;
     const toolPatch: Partial<RenderMeta> = {};
     for (const key of VIEWER_TOOL_META_KEYS) {
       if (!(key in rec)) continue;
@@ -74,10 +81,22 @@ export default async (req: Request, context: Context) => {
     if ("error" in adminMerged) {
       return json({ error: adminMerged.error }, 400);
     }
+    let bgColorPatch: string | undefined;
+    if (hasBgColor) {
+      if (rec.bgColor === null || rec.bgColor === "") {
+        bgColorPatch = undefined;
+      } else {
+        const parsed = parseBgColor(rec.bgColor);
+        if (!parsed) return json({ error: "Invalid bgColor" }, 400);
+        bgColorPatch = parsed;
+      }
+    }
+
     if (
       !hasExpiry &&
       Object.keys(toolPatch).length === 0 &&
-      !adminMerged.touched
+      !adminMerged.touched &&
+      !hasBgColor
     ) {
       return json({ error: "expiresAt, tool flags or admin fields required" }, 400);
     }
@@ -96,9 +115,14 @@ export default async (req: Request, context: Context) => {
       createdAt: current.createdAt,
       expiresAt,
     };
+    applyMetaScalars(current, next);
     applyViewerToolFlags(current, next);
     applyViewerToolFlags(toolPatch, next);
-    if (hasExpiry || Object.keys(toolPatch).length > 0) {
+    if (hasBgColor) {
+      if (bgColorPatch) next.bgColor = bgColorPatch;
+      else delete next.bgColor;
+    }
+    if (hasExpiry || Object.keys(toolPatch).length > 0 || hasBgColor) {
       await patchRenderMeta(token, next);
     }
     if (adminMerged.touched) {

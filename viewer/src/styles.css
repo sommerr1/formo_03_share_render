@@ -247,6 +247,31 @@ body,
   cursor: not-allowed;
 }
 
+.viewer-overflow-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #e8eaed;
+}
+
+.viewer-overflow-color input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #3c4043;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.viewer-overflow-color input[type="color"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .viewer-overflow-sub {
   display: flex;
   flex-direction: column;

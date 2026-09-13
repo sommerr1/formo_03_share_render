@@ -1,8 +1,13 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { downloadShareGlb } from "../viewer/downloadGlb.js";
 import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
-import { resolveShareViewerTools, type ShareViewerTools } from "../viewer/viewerTools.js";
+import {
+  resolveShareBgColor,
+  resolveShareViewerTools,
+  type ShareViewerTools,
+} from "../viewer/viewerTools.js";
 import { NotFoundPage } from "./NotFoundPage.js";
 
 type LoadState =
@@ -15,11 +20,13 @@ type LoadState =
       overlay: ShareOverlayV1 | null;
       tools: ShareViewerTools;
       token: string;
+      bgColor: string;
     };
 
 export function ViewerPage() {
   const { token } = useParams();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [loadHint, setLoadHint] = useState("Загрузка модели…");
 
   useEffect(() => {
     if (!token) {
@@ -32,6 +39,7 @@ export function ViewerPage() {
 
     (async () => {
       setState({ kind: "loading" });
+      setLoadHint("Загрузка модели…");
       try {
         const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`);
         if (metaRes.status === 404) {
@@ -42,25 +50,29 @@ export function ViewerPage() {
           throw new Error(`meta ${metaRes.status}`);
         }
         let tools = resolveShareViewerTools({});
+        let metaBody: Record<string, unknown> = {};
         try {
-          const meta = (await metaRes.json()) as Record<string, unknown>;
-          tools = resolveShareViewerTools(meta);
+          metaBody = (await metaRes.json()) as Record<string, unknown>;
+          tools = resolveShareViewerTools(metaBody);
         } catch {
           tools = resolveShareViewerTools({});
         }
 
-        const fileRes = await fetch(
-          `/api/models/${encodeURIComponent(token)}/file`,
-        );
-        if (fileRes.status === 404) {
-          if (!revoked) setState({ kind: "notFound" });
-          return;
+        let blob: Blob;
+        try {
+          blob = await downloadShareGlb(token, metaBody, (p) => {
+            if (!revoked) {
+              setLoadHint(`Загрузка ${p.chunk}/${p.total}…`);
+            }
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Load failed";
+          if (msg.includes("404") || msg === "file missing") {
+            if (!revoked) setState({ kind: "notFound" });
+            return;
+          }
+          throw err;
         }
-        if (!fileRes.ok) {
-          throw new Error(`file ${fileRes.status}`);
-        }
-
-        const blob = await fileRes.blob();
         objectUrl = URL.createObjectURL(blob);
 
         let overlay: ShareOverlayV1 | null = null;
@@ -82,13 +94,19 @@ export function ViewerPage() {
             overlay,
             tools,
             token,
+            bgColor: resolveShareBgColor(metaBody),
           });
         }
       } catch (err) {
         if (!revoked) {
+          const raw = err instanceof Error ? err.message : "Load failed";
+          const message =
+            raw === "Failed to fetch" || raw.includes("NetworkError")
+              ? "Не удалось загрузить модель. Обновите страницу — при VPN загрузка идёт частями по 1 MB."
+              : raw;
           setState({
             kind: "error",
-            message: err instanceof Error ? err.message : "Load failed",
+            message,
           });
         }
       }
@@ -107,7 +125,7 @@ export function ViewerPage() {
   const body = useMemo(() => {
     switch (state.kind) {
       case "loading":
-        return <p className="status">Загрузка модели…</p>;
+        return <p className="status">{loadHint}</p>;
       case "error":
         return (
           <div className="status status--warn">
@@ -123,11 +141,12 @@ export function ViewerPage() {
               overlay={state.overlay}
               tools={state.tools}
               token={state.token}
+              bgColor={state.bgColor}
             />
           </Suspense>
         );
     }
-  }, [state]);
+  }, [state, loadHint]);
 
   if (state.kind === "notFound") return <NotFoundPage />;
 

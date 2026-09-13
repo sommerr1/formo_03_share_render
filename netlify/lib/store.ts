@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { applyViewerToolFlags, siteBaseUrl } from "./meta.js";
+import { applyMetaScalars, applyViewerToolFlags, siteBaseUrl } from "./meta.js";
 import { parseSurveySlot, SURVEY_SLOTS } from "./survey.js";
 import { parseToken } from "./tokens.js";
 import type { RenderAdmin, RenderListItem, RenderMeta } from "./types.js";
@@ -12,8 +12,12 @@ export type UploadSession = {
 };
 
 export const CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+/** Smaller download slices — VPN/proxy-friendly (upload stays 4 MB). */
+export const DOWNLOAD_CHUNK_BYTES = 1 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = 150 * 1024 * 1024;
 export const MAX_UPLOAD_CHUNKS = 64;
+/** Merge to single GLB blob when upload fits Netlify streamed response (20 MB). */
+export const STREAM_MERGE_MAX_BYTES = 20 * 1024 * 1024;
 
 const STORE_NAME = "renders";
 
@@ -73,6 +77,7 @@ export async function getRenderMeta(token: string): Promise<RenderMeta | null> {
       createdAt: parsed.createdAt,
       expiresAt: parsed.expiresAt,
     };
+    applyMetaScalars(parsed, meta);
     applyViewerToolFlags(parsed, meta);
     return meta;
   } catch {
@@ -188,21 +193,30 @@ export async function assembleAndFinalizeUpload(
     parts.push(buf);
   }
 
-  const merged = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const part of parts) {
-    merged.set(new Uint8Array(part), offset);
-    offset += part.byteLength;
-  }
-
   const existing = await getRenderMeta(token);
   const meta: RenderMeta = {
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
+    fileSizeBytes: totalBytes,
+    totalChunks: session.totalChunks,
   };
   if (existing) applyViewerToolFlags(existing, meta);
-  await putRender(token, merged.buffer, meta);
-  await deleteUploadArtifacts(token);
+
+  await store.delete(sessionKey(token));
+
+  if (totalBytes <= STREAM_MERGE_MAX_BYTES) {
+    const merged = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const part of parts) {
+      merged.set(new Uint8Array(part), offset);
+      offset += part.byteLength;
+    }
+    await putRender(token, merged.buffer, meta);
+    await deleteUploadParts(token);
+  } else {
+    await patchRenderMeta(token, meta);
+  }
+
   return meta;
 }
 
@@ -334,6 +348,96 @@ export async function listRenderListItems(): Promise<RenderListItem[]> {
 export async function getRenderGlb(token: string): Promise<ArrayBuffer | null> {
   const store = renderStore();
   return store.get(glbKey(token), { type: "arrayBuffer" });
+}
+
+export async function getRenderGlbStream(
+  token: string,
+): Promise<ReadableStream | null> {
+  const store = renderStore();
+  return store.get(glbKey(token), { type: "stream" });
+}
+
+export async function getRenderFileSize(token: string): Promise<number | null> {
+  const meta = await getRenderMeta(token);
+  if (meta?.fileSizeBytes != null && meta.fileSizeBytes > 0) {
+    return meta.fileSizeBytes;
+  }
+  const store = renderStore();
+  const glb = await store.get(glbKey(token), { type: "arrayBuffer" });
+  if (glb) return glb.byteLength;
+  let total = 0;
+  for (let i = 0; i < MAX_UPLOAD_CHUNKS; i++) {
+    const part = await store.get(partKey(token, i), { type: "arrayBuffer" });
+    if (!part) break;
+    total += part.byteLength;
+  }
+  return total > 0 ? total : null;
+}
+
+export async function getRenderChunkPlan(
+  token: string,
+): Promise<{
+  fileSizeBytes: number;
+  chunkSize: number;
+  totalChunks: number;
+} | null> {
+  const fileSizeBytes = await getRenderFileSize(token);
+  if (fileSizeBytes == null || fileSizeBytes < 1) return null;
+  return {
+    fileSizeBytes,
+    chunkSize: DOWNLOAD_CHUNK_BYTES,
+    totalChunks: Math.max(1, Math.ceil(fileSizeBytes / DOWNLOAD_CHUNK_BYTES)),
+  };
+}
+
+export async function getRenderGlbByteRange(
+  token: string,
+  start: number,
+  end: number,
+): Promise<ArrayBuffer | null> {
+  if (start < 0 || end <= start) return null;
+  const store = renderStore();
+
+  const glb = await store.get(glbKey(token), { type: "arrayBuffer" });
+  if (glb) {
+    if (start >= glb.byteLength) return null;
+    return glb.slice(start, Math.min(end, glb.byteLength));
+  }
+
+  const length = end - start;
+  const out = new Uint8Array(length);
+  let globalOff = 0;
+  let filled = 0;
+  for (let i = 0; i < MAX_UPLOAD_CHUNKS; i++) {
+    const part = await store.get(partKey(token, i), { type: "arrayBuffer" });
+    if (!part) break;
+    const partStart = globalOff;
+    const partEnd = globalOff + part.byteLength;
+    globalOff = partEnd;
+
+    const oStart = Math.max(start, partStart);
+    const oEnd = Math.min(end, partEnd);
+    if (oStart >= oEnd) continue;
+
+    const inPart = oStart - partStart;
+    const n = oEnd - oStart;
+    out.set(new Uint8Array(part, inPart, n), oStart - start);
+    filled += n;
+  }
+  return filled > 0 ? out.buffer : null;
+}
+
+export async function getRenderGlbChunk(
+  token: string,
+  index: number,
+): Promise<ArrayBuffer | null> {
+  if (!Number.isInteger(index) || index < 0) return null;
+  const fileSize = await getRenderFileSize(token);
+  if (fileSize == null || fileSize < 1) return null;
+  const start = index * DOWNLOAD_CHUNK_BYTES;
+  if (start >= fileSize) return null;
+  const end = Math.min(start + DOWNLOAD_CHUNK_BYTES, fileSize);
+  return getRenderGlbByteRange(token, start, end);
 }
 
 export async function getRenderOverlay(

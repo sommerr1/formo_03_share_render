@@ -24,6 +24,7 @@ import {
   STUDIO_FILL_COLOR,
   STUDIO_KEY_COLOR,
 } from "./lights.js";
+import { downloadShareGlb } from "./downloadGlb.js";
 import { OverflowMenu } from "./OverflowMenu.js";
 import {
   FORMO_FACADES_GROUP,
@@ -34,6 +35,7 @@ import {
 import { PhotoBackdrop, PhotoClear } from "./PhotoBackdrop.js";
 import { PHOTO_BG_FLAG, readPhotoFile } from "./photoBg.js";
 import { SurveyPanel } from "./SurveyPanel.js";
+import { DEFAULT_SHARE_BG_COLOR } from "./viewerTools.js";
 import { overflowMenuVisible, type ShareViewerTools } from "./viewerTools.js";
 
 const XRAY_OPACITY = 0.3;
@@ -210,9 +212,10 @@ type Props = {
   overlay: ShareOverlayV1 | null;
   tools: ShareViewerTools;
   token: string;
+  bgColor?: string;
 };
 
-export function GlbViewer({ url, overlay, tools, token }: Props) {
+export function GlbViewer({ url, overlay, tools, token, bgColor: bgColorProp }: Props) {
   const [showFacades, setShowFacades] = useState(true);
   const [showFillers, setShowFillers] = useState(false);
   const [hasFillers, setHasFillers] = useState(false);
@@ -225,6 +228,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
   const [photoTex, setPhotoTex] = useState<CanvasTexture | null>(null);
   const [photoLuma, setPhotoLuma] = useState(0.5);
   const [glbBusy, setGlbBusy] = useState(false);
+  const [bgColor, setBgColor] = useState(bgColorProp ?? DEFAULT_SHARE_BG_COLOR);
   const frozenRef = useRef(frozen);
   frozenRef.current = frozen;
   const freezeBeforeSurveyRef = useRef(false);
@@ -234,6 +238,10 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
   const photoTexRef = useRef<CanvasTexture | null>(null);
   const hasOverlay = overlay != null;
   const lightK = photoUrl ? exposureFromLuma(photoLuma) : 1;
+
+  useEffect(() => {
+    setBgColor(bgColorProp ?? DEFAULT_SHARE_BG_COLOR);
+  }, [bgColorProp]);
 
   useEffect(() => {
     return () => {
@@ -286,9 +294,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
       if (root && sceneHasFillersGroup(root)) {
         blob = await exportArGlbWithoutFillers(root);
       } else {
-        const res = await fetch(`/api/models/${encodeURIComponent(token)}/file`);
-        if (!res.ok) throw new Error(String(res.status));
-        blob = await res.blob();
+        blob = await downloadShareGlb(token);
       }
       downloadBlob(blob, "formo-ar.glb");
     } catch {
@@ -431,6 +437,8 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
           showBgPhoto={tools.bgPhoto}
           showSat={tools.sat}
           showFillersToggle={tools.fillersToggle}
+          bgColor={bgColor}
+          onBgColor={setBgColor}
         />
         ) : null}
       </div>
@@ -452,7 +460,7 @@ export function GlbViewer({ url, overlay, tools, token }: Props) {
             {photoTex ? <PhotoBackdrop texture={photoTex} /> : null}
           </>
         ) : (
-          <color attach="background" args={["#1a1d24"]} />
+          <color attach="background" args={[bgColor]} />
         )}
         <ambientLight intensity={(photoUrl ? 0.7 : 0.35) * lightK} color="#ffffff" />
         <directionalLight

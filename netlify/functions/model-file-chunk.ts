@@ -3,15 +3,10 @@ import { withCors } from "../lib/cors.js";
 import { isExpired } from "../lib/meta.js";
 import {
   DOWNLOAD_CHUNK_BYTES,
-  getRenderChunkPlan,
-  getRenderGlbStream,
+  getRenderGlbChunk,
   getRenderMeta,
-  STREAM_MERGE_MAX_BYTES,
 } from "../lib/store.js";
 import { parseToken } from "../lib/tokens.js";
-
-/** Buffered function payload limit is 6 MB; stream up to 20 MB. */
-const DIRECT_STREAM_MAX_BYTES = STREAM_MERGE_MAX_BYTES;
 
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") {
@@ -32,6 +27,14 @@ export default async (req: Request, context: Context) => {
     });
   }
 
+  const index = Number(context.params.index);
+  if (!Number.isInteger(index) || index < 0) {
+    return new Response(JSON.stringify({ error: "Invalid chunk index" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const meta = await getRenderMeta(token);
   if (!meta || isExpired(meta)) {
     return new Response(JSON.stringify({ error: "Not found" }), {
@@ -40,45 +43,22 @@ export default async (req: Request, context: Context) => {
     });
   }
 
-  const plan = await getRenderChunkPlan(token);
-  if (!plan) {
+  const chunk = await getRenderGlbChunk(token, index);
+  if (!chunk) {
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  if (plan.fileSizeBytes > DIRECT_STREAM_MAX_BYTES) {
-    return new Response(
-      JSON.stringify({
-        error: "use_chunked",
-        fileSizeBytes: plan.fileSizeBytes,
-        chunkSize: DOWNLOAD_CHUNK_BYTES,
-        totalChunks: plan.totalChunks,
-      }),
-      withCors({ status: 409 }, { "Content-Type": "application/json" }),
-    );
-  }
-
-  const stream = await getRenderGlbStream(token);
-  if (!stream) {
-    return new Response(
-      JSON.stringify({
-        error: "use_chunked",
-        fileSizeBytes: plan.fileSizeBytes,
-        chunkSize: DOWNLOAD_CHUNK_BYTES,
-        totalChunks: plan.totalChunks,
-      }),
-      withCors({ status: 409 }, { "Content-Type": "application/json" }),
-    );
-  }
-
-  return new Response(stream, withCors({}, {
-    "Content-Type": "model/gltf-binary",
+  return new Response(chunk, withCors({}, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": String(chunk.byteLength),
+    "X-Chunk-Size": String(DOWNLOAD_CHUNK_BYTES),
     "Cache-Control": "private, max-age=3600",
   }));
 };
 
 export const config: Config = {
-  path: "/api/models/:token/file",
+  path: "/api/models/:token/file/chunk/:index",
 };

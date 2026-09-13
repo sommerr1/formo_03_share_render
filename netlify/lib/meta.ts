@@ -18,6 +18,25 @@ export const VIEWER_TOOL_META_KEYS = [
 
 export type ViewerToolMetaKey = (typeof VIEWER_TOOL_META_KEYS)[number];
 
+export const DEFAULT_SHARE_BG_COLOR = "#1a1d24";
+
+export function parseBgColor(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const t = raw.trim();
+  return /^#[0-9A-Fa-f]{6}$/.test(t) ? t : undefined;
+}
+
+export function applyMetaScalars(from: Partial<RenderMeta>, to: RenderMeta): void {
+  if (typeof from.fileSizeBytes === "number" && from.fileSizeBytes > 0) {
+    to.fileSizeBytes = from.fileSizeBytes;
+  }
+  if (typeof from.totalChunks === "number" && from.totalChunks > 0) {
+    to.totalChunks = from.totalChunks;
+  }
+  const bg = parseBgColor(from.bgColor);
+  if (bg) to.bgColor = bg;
+}
+
 export function applyViewerToolFlags(
   from: Partial<Record<ViewerToolMetaKey, unknown>>,
   to: RenderMeta,
@@ -73,6 +92,7 @@ export function readMeta(raw: string | null): RenderMeta | null {
       createdAt: parsed.createdAt,
       expiresAt: parsed.expiresAt,
     };
+    applyMetaScalars(parsed, meta);
     applyViewerToolFlags(parsed, meta);
     return meta;
   } catch {

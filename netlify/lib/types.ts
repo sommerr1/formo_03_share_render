@@ -1,6 +1,12 @@
 export type RenderMeta = {
   createdAt: string;
   expiresAt: string;
+  /** GLB size in bytes (set on upload complete). */
+  fileSizeBytes?: number;
+  /** Upload/download chunk count (4 MB each). */
+  totalChunks?: number;
+  /** Studio background `#RRGGBB` when no photo backdrop. */
+  bgColor?: string;
   surveyEnabled?: boolean;
   facadesEnabled?: boolean;
   dimsEnabled?: boolean;

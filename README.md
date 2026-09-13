@@ -23,7 +23,8 @@
 | GET | `/api/models/:token` | — | meta `{ createdAt, expiresAt }` — **без** notes |
 | PATCH | `/api/models/:token` | Bearer | `{ expiresAt, surveyEnabled, label?, notes? }` |
 | DELETE | `/api/models/:token` | Bearer | удалить модель |
-| GET | `/api/models/:token/file` | — | GLB binary |
+| GET | `/api/models/:token/file` | — | GLB stream (≤20 MB) или 409 `use_chunked` |
+| GET | `/api/models/:token/file/chunk/:index` | — | часть GLB (4 MB) |
 | GET | `/api/models/:token/overlay` | — | dims + anim JSON (404 если нет) |
 | PUT | `/api/models/:token/overlay` | Bearer | sidecar v1 после upload |
 

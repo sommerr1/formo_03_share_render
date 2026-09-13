@@ -41,7 +41,9 @@ export function ViewerPage() {
       setState({ kind: "loading" });
       setLoadHint("Загрузка модели…");
       try {
-        const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`);
+        const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`, {
+          cache: "no-store",
+        });
         if (metaRes.status === 404) {
           if (!revoked) setState({ kind: "notFound" });
           return;

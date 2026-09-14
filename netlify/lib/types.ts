@@ -43,3 +43,54 @@ export type UploadResponse = {
   expiresAt: string;
   createdAt: string;
 };
+
+export type ShareVisitDeviceType = "mobile" | "tablet" | "desktop" | "unknown";
+
+export type ShareVisitGeo = {
+  country?: string;
+  countryCode?: string;
+  city?: string;
+  region?: string;
+  timezone?: string;
+};
+
+export type ShareVisitUtm = {
+  source?: string;
+  medium?: string;
+  campaign?: string;
+};
+
+/** Stored in blobs; `ip` is admin-only and stripped from public list API. */
+export type ShareVisitEvent = {
+  id: string;
+  token: string;
+  visitedAt: string;
+  sessionId: string;
+  visitorId?: string;
+  ip: string;
+  ipHash: string;
+  userAgent: string;
+  deviceType: ShareVisitDeviceType;
+  browser?: string;
+  os?: string;
+  acceptLanguage?: string;
+  referrer?: string;
+  utm?: ShareVisitUtm;
+  geo?: ShareVisitGeo;
+  viewport?: { w: number; h: number };
+  screen?: { w: number; h: number };
+  clientTimezone?: string;
+};
+
+export type ShareVisitEventPublic = Omit<ShareVisitEvent, "ip">;
+
+export type ShareVisitSummary = {
+  totalViews: number;
+  uniqueVisitors: number;
+  lastVisitAt?: string;
+};
+
+export type ShareVisitListResponse = {
+  items: ShareVisitEventPublic[];
+  summary: ShareVisitSummary;
+};

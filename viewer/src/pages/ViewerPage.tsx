@@ -8,6 +8,7 @@ import {
   resolveShareViewerTools,
   type ShareViewerTools,
 } from "../viewer/viewerTools.js";
+import { trackShareVisit } from "../viewer/trackVisit.js";
 import { NotFoundPage } from "./NotFoundPage.js";
 
 type LoadState =
@@ -51,6 +52,7 @@ export function ViewerPage() {
         if (!metaRes.ok) {
           throw new Error(`meta ${metaRes.status}`);
         }
+        trackShareVisit(token);
         let tools = resolveShareViewerTools({});
         let metaBody: Record<string, unknown> = {};
         try {

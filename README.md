@@ -27,6 +27,8 @@
 | GET | `/api/models/:token/file/chunk/:index` | — | часть GLB (4 MB) |
 | GET | `/api/models/:token/overlay` | — | dims + anim JSON (404 если нет) |
 | PUT | `/api/models/:token/overlay` | Bearer | sidecar v1 после upload |
+| POST | `/api/models/:token/visit` | — | beacon визита (viewer); `VISIT_ANALYTICS_ENABLED=false` → `{ ok, disabled }` |
+| GET | `/api/models/:token/visits` | Bearer | `{ items, summary }` — без raw IP в items |
 
 Viewer: `/v/:token` — **32-символьный** код в URL, доступен всем, у кого есть ссылка.
 
@@ -52,6 +54,7 @@ openssl rand -hex 32
 
 - `ADMIN_SECRET` — см. выше
 - `ALLOWED_ORIGIN` — CORS (default `*`)
+- `VISIT_ANALYTICS_ENABLED` — `false` отключает visit log без отката кода
 - `URL` — Netlify подставляет сам; из него собирается итоговый viewer-URL
 
 ## Local dev

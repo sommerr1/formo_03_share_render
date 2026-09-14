@@ -3,6 +3,7 @@ import { applyMetaScalars, applyViewerToolFlags, siteBaseUrl } from "./meta.js";
 import { parseSurveySlot, SURVEY_SLOTS } from "./survey.js";
 import { parseToken } from "./tokens.js";
 import type { RenderAdmin, RenderListItem, RenderMeta } from "./types.js";
+import { deleteRenderVisits } from "./visitStore.js";
 
 export type UploadSession = {
   createdAt: string;
@@ -311,16 +312,12 @@ export function mergeAdminPatch(
 export async function listRenderListItems(): Promise<RenderListItem[]> {
   const store = renderStore();
   const tokens = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    const page = await store.list(cursor ? { cursor } : undefined);
-    for (const item of page.blobs) {
-      if (!item.key.endsWith(".meta.json")) continue;
-      const token = parseToken(item.key.slice(0, -".meta.json".length));
-      if (token) tokens.add(token);
-    }
-    cursor = page.cursor;
-  } while (cursor);
+  const { blobs } = await store.list();
+  for (const item of blobs) {
+    if (!item.key.endsWith(".meta.json")) continue;
+    const token = parseToken(item.key.slice(0, -".meta.json".length));
+    if (token) tokens.add(token);
+  }
 
   const items: RenderListItem[] = [];
   const base = siteBaseUrl();
@@ -548,6 +545,7 @@ export async function deleteRender(token: string): Promise<void> {
   await store.delete(adminKey(token));
   await deleteRenderSurveyImages(token);
   await deleteUploadArtifacts(token);
+  await deleteRenderVisits(token);
 }
 
 export async function purgeExpiredRenders(now = Date.now()): Promise<number> {

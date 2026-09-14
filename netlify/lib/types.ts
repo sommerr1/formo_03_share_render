@@ -82,7 +82,8 @@ export type ShareVisitEvent = {
   clientTimezone?: string;
 };
 
-export type ShareVisitEventPublic = Omit<ShareVisitEvent, "ip">;
+/** Admin GET only — includes IP. */
+export type ShareVisitAdminItem = Omit<ShareVisitEvent, "ip"> & { ip: string };
 
 export type ShareVisitSummary = {
   totalViews: number;
@@ -91,6 +92,23 @@ export type ShareVisitSummary = {
 };
 
 export type ShareVisitListResponse = {
-  items: ShareVisitEventPublic[];
+  items: ShareVisitAdminItem[];
   summary: ShareVisitSummary;
+};
+
+export type ShareVisitTokenSummary = {
+  token: string;
+  summary: ShareVisitSummary;
+};
+
+export type ShareVisitRepeatVisitor = {
+  visitorKey: string;
+  tokenCount: number;
+  tokens: string[];
+};
+
+export type ShareAnalyticsSummaryResponse = {
+  global: ShareVisitSummary;
+  byToken: ShareVisitTokenSummary[];
+  repeatVisitors: ShareVisitRepeatVisitor[];
 };

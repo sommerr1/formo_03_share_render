@@ -2,10 +2,13 @@ import { customAlphabet } from "nanoid";
 import { renderStore } from "./store.js";
 import { lookupGeo } from "./geo.js";
 import { isBotUserAgent, parseUserAgent } from "./ua.js";
+import { parseToken } from "./tokens.js";
 import type {
+  ShareAnalyticsSummaryResponse,
+  ShareVisitAdminItem,
   ShareVisitEvent,
-  ShareVisitEventPublic,
   ShareVisitListResponse,
+  ShareVisitSummary,
   ShareVisitUtm,
 } from "./types.js";
 
@@ -167,9 +170,9 @@ export async function appendVisitEvent(opts: {
   return { ok: true };
 }
 
-function toPublicEvent(event: ShareVisitEvent): ShareVisitEventPublic {
-  const { ip: _ip, ...rest } = event;
-  return rest;
+function toAdminEvent(event: ShareVisitEvent): ShareVisitAdminItem {
+  const { ip, ...rest } = event;
+  return { ...rest, ip };
 }
 
 function visitorKey(event: ShareVisitEvent): string {
@@ -224,9 +227,75 @@ export async function listVisitEvents(opts: {
   const all = await loadVisitEvents(opts.token);
   const slice = all.slice(offset, offset + limit);
   return {
-    items: slice.map(toPublicEvent),
+    items: slice.map(toAdminEvent),
     summary: buildSummary(all),
   };
+}
+
+async function loadAllVisitEvents(): Promise<ShareVisitEvent[]> {
+  const store = renderStore();
+  const events: ShareVisitEvent[] = [];
+  const { blobs } = await store.list({ prefix: "visits/" });
+  for (const blob of blobs) {
+    if (!blob.key.endsWith(".json")) continue;
+    const parts = blob.key.split("/");
+    if (parts.length !== 3 || parts[0] !== "visits") continue;
+    if (!parseToken(parts[1])) continue;
+    const raw = await store.get(blob.key, { type: "text" });
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as ShareVisitEvent;
+      if (
+        typeof parsed.id === "string" &&
+        typeof parsed.visitedAt === "string" &&
+        typeof parsed.token === "string"
+      ) {
+        events.push(parsed);
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return events;
+}
+
+export async function buildAnalyticsSummary(): Promise<ShareAnalyticsSummaryResponse> {
+  const events = await loadAllVisitEvents();
+  const byTokenMap = new Map<string, ShareVisitEvent[]>();
+  const visitorToTokens = new Map<string, Set<string>>();
+
+  for (const event of events) {
+    const list = byTokenMap.get(event.token) ?? [];
+    list.push(event);
+    byTokenMap.set(event.token, list);
+    const vk = visitorKey(event);
+    const set = visitorToTokens.get(vk) ?? new Set<string>();
+    set.add(event.token);
+    visitorToTokens.set(vk, set);
+  }
+
+  const byToken = [...byTokenMap.entries()]
+    .map(([token, tokenEvents]) => ({
+      token,
+      summary: buildSummary(tokenEvents),
+    }))
+    .sort((a, b) =>
+      (b.summary.lastVisitAt ?? "").localeCompare(a.summary.lastVisitAt ?? ""),
+    );
+
+  const repeatVisitors = [...visitorToTokens.entries()]
+    .filter(([, tokens]) => tokens.size > 1)
+    .map(([visitorKey, tokens]) => ({
+      visitorKey: `${visitorKey.slice(0, 8)}…`,
+      tokenCount: tokens.size,
+      tokens: [...tokens].sort(),
+    }))
+    .sort((a, b) => b.tokenCount - a.tokenCount)
+    .slice(0, 30);
+
+  const global = buildSummary(events);
+
+  return { global, byToken, repeatVisitors };
 }
 
 export async function deleteRenderVisits(token: string): Promise<void> {

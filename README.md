@@ -29,6 +29,7 @@
 | PUT | `/api/models/:token/overlay` | Bearer | sidecar v1 после upload |
 | POST | `/api/models/:token/visit` | — | beacon визита (viewer); `VISIT_ANALYTICS_ENABLED=false` → `{ ok, disabled }` |
 | GET | `/api/models/:token/visits` | Bearer | `{ items, summary }` — items с `ip` (admin) |
+| DELETE | `/api/models/:token/visits` | Bearer | удалить все визиты по token |
 | GET | `/api/analytics/summary` | Bearer | глобальная сводка + по token + repeat visitors |
 
 Viewer: `/v/:token` — **32-символьный** код в URL, доступен всем, у кого есть ссылка.

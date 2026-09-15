@@ -7,6 +7,8 @@ export type RenderMeta = {
   totalChunks?: number;
   /** Studio background `#RRGGBB` when no photo backdrop. */
   bgColor?: string;
+  shareMode?: "survey" | "promo";
+  promoManifest?: unknown;
   surveyEnabled?: boolean;
   facadesEnabled?: boolean;
   dimsEnabled?: boolean;

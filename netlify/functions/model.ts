@@ -66,6 +66,8 @@ export default async (req: Request, context: Context) => {
     const rec = body as Record<string, unknown>;
     const hasExpiry = "expiresAt" in rec;
     const hasBgColor = "bgColor" in rec;
+    const hasShareMode = "shareMode" in rec;
+    const hasPromoManifest = "promoManifest" in rec;
     const toolPatch: Partial<RenderMeta> = {};
     for (const key of VIEWER_TOOL_META_KEYS) {
       if (!(key in rec)) continue;
@@ -96,7 +98,9 @@ export default async (req: Request, context: Context) => {
       !hasExpiry &&
       Object.keys(toolPatch).length === 0 &&
       !adminMerged.touched &&
-      !hasBgColor
+      !hasBgColor &&
+      !hasShareMode &&
+      !hasPromoManifest
     ) {
       return json({ error: "expiresAt, tool flags or admin fields required" }, 400);
     }
@@ -122,7 +126,15 @@ export default async (req: Request, context: Context) => {
       if (bgColorPatch) next.bgColor = bgColorPatch;
       else delete next.bgColor;
     }
-    if (hasExpiry || Object.keys(toolPatch).length > 0 || hasBgColor) {
+    if (hasShareMode) {
+      if (rec.shareMode === "survey" || rec.shareMode === "promo") {
+        next.shareMode = rec.shareMode;
+      }
+    }
+    if (hasPromoManifest) {
+      next.promoManifest = rec.promoManifest;
+    }
+    if (hasExpiry || Object.keys(toolPatch).length > 0 || hasBgColor || hasShareMode || hasPromoManifest) {
       await patchRenderMeta(token, next);
     }
     if (adminMerged.touched) {

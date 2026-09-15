@@ -35,6 +35,12 @@ export function applyMetaScalars(from: Partial<RenderMeta>, to: RenderMeta): voi
   }
   const bg = parseBgColor(from.bgColor);
   if (bg) to.bgColor = bg;
+  if (from.shareMode === "survey" || from.shareMode === "promo") {
+    to.shareMode = from.shareMode;
+  }
+  if (from.promoManifest !== undefined) {
+    to.promoManifest = from.promoManifest;
+  }
 }
 
 export function applyViewerToolFlags(

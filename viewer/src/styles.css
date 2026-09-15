@@ -615,3 +615,222 @@ code {
   border-radius: 4px;
   padding: 0.15rem 0.35rem;
 }
+
+/* Promo Viewer UI */
+.promo-viewer-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  background: #0f172a;
+  color: #f8fafc;
+  position: relative;
+  overflow: hidden;
+}
+
+.promo-viewer-frame-viewport {
+  flex: 1 1 auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #020617;
+  overflow: hidden;
+}
+
+.promo-viewer-bg-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0.85;
+}
+
+.promo-viewer-frame-img {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  z-index: 1;
+}
+
+.promo-viewer-overlay-text {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  pointer-events: none;
+  text-align: center;
+  white-space: pre-wrap;
+  max-width: 80%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.promo-viewer-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 2rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.promo-viewer-arrow:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.85);
+}
+
+.promo-viewer-arrow:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.promo-viewer-arrow--prev {
+  left: 1rem;
+}
+
+.promo-viewer-arrow--next {
+  right: 1rem;
+}
+
+.promo-viewer-bottom-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 4;
+}
+
+.promo-viewer-carousel {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.promo-viewer-thumb {
+  position: relative;
+  flex: 0 0 4rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.promo-viewer-thumb.is-active {
+  border-color: #3b82f6;
+  transform: scale(1.05);
+}
+
+.promo-viewer-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.promo-viewer-thumb-num {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 2px;
+}
+
+.promo-viewer-3d-btn {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.promo-viewer-3d-btn:hover {
+  background: #2563eb;
+}
+
+.promo-viewer-help-icon {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .desktop-only {
+    display: none !important;
+  }
+  .mobile-only {
+    display: flex !important;
+  }
+  .promo-viewer-help-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 3;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.9);
+    color: #fff;
+    border: none;
+    font-size: 1.1rem;
+    font-weight: bold;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .promo-viewer-text-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  .promo-viewer-text-modal-content {
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 8px;
+    max-width: 90%;
+    text-align: center;
+  }
+  .promo-viewer-text-modal-content button {
+    margin-top: 1rem;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+  }
+}
+

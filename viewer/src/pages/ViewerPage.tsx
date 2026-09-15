@@ -2,6 +2,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { downloadShareGlb } from "../viewer/downloadGlb.js";
 import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
+import { parsePromoManifest, type PromoManifest } from "../viewer/promoManifest.js";
+import { PromoViewerUI } from "../viewer/PromoViewerUI.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
 import {
   resolveShareBgColor,
@@ -16,6 +18,13 @@ type LoadState =
   | { kind: "notFound" }
   | { kind: "error"; message: string }
   | {
+      kind: "promo";
+      manifest: PromoManifest;
+      tools: ShareViewerTools;
+      token: string;
+      metaBody: Record<string, unknown>;
+    }
+  | {
       kind: "ready";
       url: string;
       overlay: ShareOverlayV1 | null;
@@ -27,7 +36,45 @@ type LoadState =
 export function ViewerPage() {
   const { token } = useParams();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [loadHint, setLoadHint] = useState("Загрузка модели…");
+  const [loadHint, setLoadHint] = useState("Загрузка страницы…");
+
+  const load3dModel = async (metaBody: Record<string, unknown>, currentToken: string) => {
+    setLoadHint("Загрузка 3D модели…");
+    setState({ kind: "loading" });
+    try {
+      const blob = await downloadShareGlb(currentToken, metaBody, (p) => {
+        setLoadHint(`Загрузка 3D ${p.chunk}/${p.total}…`);
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      let overlay: ShareOverlayV1 | null = null;
+
+      const overlayRes = await fetch(
+        `/api/models/${encodeURIComponent(currentToken)}/overlay`,
+      );
+      if (overlayRes.ok) {
+        try {
+          overlay = parseShareOverlay(await overlayRes.json());
+        } catch {
+          overlay = null;
+        }
+      }
+
+      setState({
+        kind: "ready",
+        url: objectUrl,
+        overlay,
+        tools: resolveShareViewerTools(metaBody),
+        token: currentToken,
+        bgColor: resolveShareBgColor(metaBody),
+      });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "3D Load failed";
+      setState({
+        kind: "error",
+        message: `Не удалось загрузить 3D модель: ${raw}`,
+      });
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -36,11 +83,10 @@ export function ViewerPage() {
     }
 
     let revoked = false;
-    let objectUrl: string | null = null;
 
     (async () => {
       setState({ kind: "loading" });
-      setLoadHint("Загрузка модели…");
+      setLoadHint("Загрузка данных…");
       try {
         const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`, {
           cache: "no-store",
@@ -53,15 +99,32 @@ export function ViewerPage() {
           throw new Error(`meta ${metaRes.status}`);
         }
         trackShareVisit(token);
-        let tools = resolveShareViewerTools({});
         let metaBody: Record<string, unknown> = {};
         try {
           metaBody = (await metaRes.json()) as Record<string, unknown>;
-          tools = resolveShareViewerTools(metaBody);
         } catch {
-          tools = resolveShareViewerTools({});
+          metaBody = {};
         }
 
+        const tools = resolveShareViewerTools(metaBody);
+        const shareMode = metaBody.shareMode;
+        const promoManifest = parsePromoManifest(metaBody.promoManifest);
+
+        // 1) Режим Промо: загрузка сразу Галереи (3D загружается только по клику на кнопку)
+        if (shareMode === "promo" && promoManifest && promoManifest.frames.length > 0) {
+          if (!revoked) {
+            setState({
+              kind: "promo",
+              manifest: promoManifest,
+              tools,
+              token,
+              metaBody,
+            });
+          }
+          return;
+        }
+
+        // 2) Обычный 3D режим (или Promo без галереи кадров)
         let blob: Blob;
         try {
           blob = await downloadShareGlb(token, metaBody, (p) => {
@@ -77,10 +140,10 @@ export function ViewerPage() {
           }
           throw err;
         }
-        objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
 
         let overlay: ShareOverlayV1 | null = null;
-        if (metaBody.shareMode !== "promo" || metaBody.allow3D !== false) {
+        if (metaBody.allow3D !== false) {
           const overlayRes = await fetch(
             `/api/models/${encodeURIComponent(token)}/overlay`,
           );
@@ -108,7 +171,7 @@ export function ViewerPage() {
           const raw = err instanceof Error ? err.message : "Load failed";
           const message =
             raw === "Failed to fetch" || raw.includes("NetworkError")
-              ? "Не удалось загрузить модель. Обновите страницу — при VPN загрузка идёт частями по 1 MB."
+              ? "Не удалось загрузить данные. Обновите страницу."
               : raw;
           setState({
             kind: "error",
@@ -120,12 +183,13 @@ export function ViewerPage() {
 
     return () => {
       revoked = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [token]);
 
   useEffect(() => {
-    if (state.kind === "ready") document.title = "Formo Share Render";
+    if (state.kind === "ready" || state.kind === "promo") {
+      document.title = "Formo Share Render";
+    }
   }, [state.kind]);
 
   const body = useMemo(() => {
@@ -138,6 +202,14 @@ export function ViewerPage() {
             <h1>Ошибка</h1>
             <p>{state.message}</p>
           </div>
+        );
+      case "promo":
+        return (
+          <PromoViewerUI
+            manifest={state.manifest}
+            allow3D={state.manifest.allow3D}
+            onLoad3D={() => load3dModel(state.metaBody, state.token)}
+          />
         );
       case "ready":
         return (

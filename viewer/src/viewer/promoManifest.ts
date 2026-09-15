@@ -32,11 +32,20 @@ export interface PromoManifest {
 }
 
 export function parsePromoManifest(json: unknown): PromoManifest | null {
-  if (!json || typeof json !== "object") return null;
-  const raw = json as Partial<PromoManifest>;
-  if (!Array.isArray(raw.frames)) return null;
+  if (!json) return null;
+  let parsedJson = json;
+  if (typeof json === "string") {
+    try {
+      parsedJson = JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsedJson || typeof parsedJson !== "object") return null;
+  const raw = parsedJson as Partial<PromoManifest>;
+  const framesArray = Array.isArray(raw.frames) ? raw.frames : [];
   return {
-    frames: raw.frames.map((f, idx) => ({
+    frames: framesArray.map((f, idx) => ({
       id: typeof f?.id === "string" ? f.id : `frame_${idx}_${Date.now()}`,
       order: typeof f?.order === "number" ? f.order : idx,
       title: typeof f?.title === "string" ? f.title : undefined,

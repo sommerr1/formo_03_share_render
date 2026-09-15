@@ -108,10 +108,13 @@ export function ViewerPage() {
 
         const tools = resolveShareViewerTools(metaBody);
         const shareMode = metaBody.shareMode;
-        const promoManifest = parsePromoManifest(metaBody.promoManifest);
+        const promoManifest = parsePromoManifest(metaBody.promoManifest) ?? {
+          frames: [],
+          allow3D: metaBody.allow3D !== false,
+        };
 
         // 1) Режим Промо: загрузка сразу Галереи (3D загружается только по клику на кнопку)
-        if (shareMode === "promo" && promoManifest) {
+        if (shareMode === "promo") {
           if (!revoked) {
             setState({
               kind: "promo",

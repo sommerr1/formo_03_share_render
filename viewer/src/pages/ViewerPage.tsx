@@ -33,18 +33,67 @@ type LoadState =
       bgColor: string;
     };
 
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { downloadShareGlb } from "../viewer/downloadGlb.js";
+import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
+import { parsePromoManifest, type PromoManifest } from "../viewer/promoManifest.js";
+import { PromoViewerUI } from "../viewer/PromoViewerUI.js";
+import { GlbViewer } from "../viewer/GlbViewer.js";
+import {
+  resolveShareBgColor,
+  resolveShareViewerTools,
+  type ShareViewerTools,
+} from "../viewer/viewerTools.js";
+import { trackShareVisit } from "../viewer/trackVisit.js";
+import { NotFoundPage } from "./NotFoundPage.js";
+
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "notFound" }
+  | { kind: "error"; message: string }
+  | {
+      kind: "promo";
+      manifest: PromoManifest;
+      tools: ShareViewerTools;
+      token: string;
+      metaBody: Record<string, unknown>;
+    }
+  | {
+      kind: "ready";
+      url: string;
+      overlay: ShareOverlayV1 | null;
+      tools: ShareViewerTools;
+      token: string;
+      bgColor: string;
+    };
+
 export function ViewerPage() {
   const { token } = useParams();
+  const [searchParams] = useSearchParams();
+  const isDebugLog = searchParams.get("log") === "1" || searchParams.has("debug");
+  const [logs, setLogs] = useState<string[]>([]);
+
+  const addLog = (msg: string, data?: unknown) => {
+    const time = new Date().toISOString().split("T")[1]?.slice(0, 8);
+    const dataStr = data !== undefined ? ` | ${JSON.stringify(data)}` : "";
+    const logLine = `[${time}] ${msg}${dataStr}`;
+    console.log(`[ViewerLog] ${logLine}`);
+    setLogs((prev) => [...prev, logLine]);
+  };
+
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [loadHint, setLoadHint] = useState("Загрузка страницы…");
 
   const load3dModel = async (metaBody: Record<string, unknown>, currentToken: string) => {
+    addLog("load3dModel called", { token: currentToken });
     setLoadHint("Загрузка 3D модели…");
     setState({ kind: "loading" });
     try {
       const blob = await downloadShareGlb(currentToken, metaBody, (p) => {
         setLoadHint(`Загрузка 3D ${p.chunk}/${p.total}…`);
       });
+      addLog("3D GLB blob downloaded", { size: blob.size, type: blob.type });
       const objectUrl = URL.createObjectURL(blob);
       let overlay: ShareOverlayV1 | null = null;
 
@@ -69,6 +118,7 @@ export function ViewerPage() {
       });
     } catch (err) {
       const raw = err instanceof Error ? err.message : "3D Load failed";
+      addLog("3D Load error", raw);
       setState({
         kind: "error",
         message: `Не удалось загрузить 3D модель: ${raw}`,
@@ -77,7 +127,9 @@ export function ViewerPage() {
   };
 
   useEffect(() => {
+    addLog("ViewerPage mounted/updated", { token, isDebugLog });
     if (!token) {
+      addLog("No token in params -> notFound");
       setState({ kind: "notFound" });
       return;
     }
@@ -88,33 +140,47 @@ export function ViewerPage() {
       setState({ kind: "loading" });
       setLoadHint("Загрузка данных…");
       try {
-        const metaRes = await fetch(`/api/models/${encodeURIComponent(token)}`, {
-          cache: "no-store",
-        });
+        const metaUrl = `/api/models/${encodeURIComponent(token)}`;
+        addLog("Fetching meta from", metaUrl);
+        const metaRes = await fetch(metaUrl, { cache: "no-store" });
+        addLog("Meta response status", { status: metaRes.status, ok: metaRes.ok });
+
         if (metaRes.status === 404) {
+          addLog("Meta returned 404 -> notFound");
           if (!revoked) setState({ kind: "notFound" });
           return;
         }
         if (!metaRes.ok) {
-          throw new Error(`meta ${metaRes.status}`);
+          throw new Error(`meta status ${metaRes.status}`);
         }
         trackShareVisit(token);
         let metaBody: Record<string, unknown> = {};
         try {
           metaBody = (await metaRes.json()) as Record<string, unknown>;
-        } catch {
+          addLog("Meta body received", metaBody);
+        } catch (e) {
+          addLog("Error parsing meta JSON", String(e));
           metaBody = {};
         }
 
         const tools = resolveShareViewerTools(metaBody);
         const shareMode = metaBody.shareMode;
-        const promoManifest = parsePromoManifest(metaBody.promoManifest) ?? {
+        const rawPromo = metaBody.promoManifest;
+        const promoManifest = parsePromoManifest(rawPromo) ?? {
           frames: [],
           allow3D: metaBody.allow3D !== false,
         };
 
+        addLog("Parsed meta params", {
+          shareMode,
+          rawPromoType: typeof rawPromo,
+          parsedFramesCount: promoManifest.frames?.length,
+          allow3D: promoManifest.allow3D,
+        });
+
         // 1) Режим Промо: загрузка сразу Галереи (3D загружается только по клику на кнопку)
         if (shareMode === "promo") {
+          addLog("Entering PROMO mode state");
           if (!revoked) {
             setState({
               kind: "promo",
@@ -127,6 +193,8 @@ export function ViewerPage() {
           return;
         }
 
+        addLog("Entering 3D mode state (shareMode != promo)", { shareMode });
+
         // 2) Обычный 3D режим (или Promo без галереи кадров)
         let blob: Blob;
         try {
@@ -135,8 +203,10 @@ export function ViewerPage() {
               setLoadHint(`Загрузка ${p.chunk}/${p.total}…`);
             }
           });
+          addLog("Downloaded 3D GLB blob", { size: blob.size });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Load failed";
+          addLog("Error downloading GLB", msg);
           if (msg.includes("404") || msg === "file missing") {
             if (!revoked) setState({ kind: "notFound" });
             return;
@@ -147,9 +217,11 @@ export function ViewerPage() {
 
         let overlay: ShareOverlayV1 | null = null;
         if (metaBody.allow3D !== false) {
+          addLog("Fetching overlay...");
           const overlayRes = await fetch(
             `/api/models/${encodeURIComponent(token)}/overlay`,
           );
+          addLog("Overlay status", overlayRes.status);
           if (overlayRes.ok) {
             try {
               overlay = parseShareOverlay(await overlayRes.json());
@@ -160,6 +232,7 @@ export function ViewerPage() {
         }
 
         if (!revoked) {
+          addLog("Entering READY state for 3D");
           setState({
             kind: "ready",
             url: objectUrl,
@@ -172,6 +245,7 @@ export function ViewerPage() {
       } catch (err) {
         if (!revoked) {
           const raw = err instanceof Error ? err.message : "Load failed";
+          addLog("Catch error in load effect", raw);
           const message =
             raw === "Failed to fetch" || raw.includes("NetworkError")
               ? "Не удалось загрузить данные. Обновите страницу."
@@ -231,5 +305,52 @@ export function ViewerPage() {
 
   if (state.kind === "notFound") return <NotFoundPage />;
 
-  return <main className="page page--viewer">{body}</main>;
+  return (
+    <main className="page page--viewer" style={{ position: "relative" }}>
+      {body}
+      {isDebugLog && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            maxHeight: "40vh",
+            overflowY: "auto",
+            background: "rgba(0, 0, 0, 0.92)",
+            color: "#00ff66",
+            fontFamily: "monospace",
+            fontSize: "12px",
+            padding: "10px",
+            zIndex: 99999,
+            borderTop: "2px solid #00ff66",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+            <strong>🔍 Debug Log (?log=1):</strong>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(logs.join("\n"))}
+              style={{
+                background: "#00ff66",
+                color: "#000",
+                border: "none",
+                padding: "2px 8px",
+                borderRadius: "3px",
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              Копировать логи
+            </button>
+          </div>
+          {logs.map((log, i) => (
+            <div key={i} style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {log}
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
+  );
 }

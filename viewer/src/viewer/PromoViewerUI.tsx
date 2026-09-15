@@ -134,18 +134,25 @@ export function PromoViewerUI({
             <div className="promo-viewer-lookbook">
               <span className="promo-viewer-lookbook-title">Похожие проекты:</span>
               <div className="promo-viewer-lookbook-tokens">
-                {manifest.relatedTokens.map((relToken, idx) => (
-                  <a
-                    key={relToken}
-                    href={`/v/${encodeURIComponent(relToken)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="promo-viewer-lookbook-link"
-                    title={`Открыть связанный проект ${relToken}`}
-                  >
-                    Проект #{idx + 1}
-                  </a>
-                ))}
+                {manifest.relatedTokens.map((item, idx) => {
+                  const token = typeof item === "string" ? item : item.token;
+                  const label =
+                    typeof item === "object" && item.label?.trim()
+                      ? item.label.trim()
+                      : `Проект #${idx + 1}`;
+                  return (
+                    <a
+                      key={token}
+                      href={`/v/${encodeURIComponent(token)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="promo-viewer-lookbook-link"
+                      title={`Открыть ${label}`}
+                    >
+                      {label}
+                    </a>
+                  );
+                })}
               </div>
             </div>
           )}

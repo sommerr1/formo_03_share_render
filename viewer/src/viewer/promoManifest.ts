@@ -23,12 +23,17 @@ export interface PromoViewFrame {
   };
 }
 
+export interface PromoRelatedItem {
+  token: string;
+  label?: string;
+}
+
 export interface PromoManifest {
   frames: PromoViewFrame[];
   allow3D: boolean;
   backgroundImageUrl?: string;
   autoPlay?: boolean;
-  relatedTokens?: string[];
+  relatedTokens?: (string | PromoRelatedItem)[];
 }
 
 export function parsePromoManifest(json: unknown): PromoManifest | null {
@@ -117,7 +122,18 @@ export function parsePromoManifest(json: unknown): PromoManifest | null {
         : undefined,
     autoPlay: Boolean(raw.autoPlay),
     relatedTokens: Array.isArray(raw.relatedTokens)
-      ? raw.relatedTokens.filter((t): t is string => typeof t === "string" && Boolean(t))
+      ? raw.relatedTokens
+          .map((t) => {
+            if (typeof t === "string" && Boolean(t)) return t;
+            if (t && typeof t === "object" && typeof (t as PromoRelatedItem).token === "string") {
+              return {
+                token: String((t as PromoRelatedItem).token),
+                label: typeof (t as PromoRelatedItem).label === "string" ? String((t as PromoRelatedItem).label) : undefined,
+              };
+            }
+            return null;
+          })
+          .filter((t): t is string | PromoRelatedItem => t !== null)
       : undefined,
   };
 }

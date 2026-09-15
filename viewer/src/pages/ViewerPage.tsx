@@ -111,7 +111,7 @@ export function ViewerPage() {
         const promoManifest = parsePromoManifest(metaBody.promoManifest);
 
         // 1) Режим Промо: загрузка сразу Галереи (3D загружается только по клику на кнопку)
-        if (shareMode === "promo" && promoManifest && promoManifest.frames.length > 0) {
+        if (shareMode === "promo" && promoManifest) {
           if (!revoked) {
             setState({
               kind: "promo",

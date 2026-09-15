@@ -54,7 +54,7 @@ function DimMark({ dim }: { dim: StudioDim }) {
       <Line points={[dim.a, dim.b]} color={color} lineWidth={1.6} depthTest={false} renderOrder={51} raycast={noHit} />
       <Line points={tickA} color={color} lineWidth={1.6} depthTest={false} renderOrder={51} raycast={noHit} />
       <Line points={tickB} color={color} lineWidth={1.6} depthTest={false} renderOrder={51} raycast={noHit} />
-      <Html position={dim.label} center sprite occlude={false} style={{ pointerEvents: "none" }} zIndexRange={[220, 0]}>
+      <Html position={dim.label} center occlude={false} style={{ pointerEvents: "none" }} zIndexRange={[220, 0]}>
         <div className={`share-dim share-dim--${dim.kind}`}>{dim.valueMm}</div>
       </Html>
     </group>

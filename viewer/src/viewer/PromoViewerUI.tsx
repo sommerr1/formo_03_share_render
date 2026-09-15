@@ -115,18 +115,40 @@ export function PromoViewerUI({
 
       {/* Нижний тулбар и карусель превью кадров */}
       <div className="promo-viewer-bottom-bar">
-        <div className="promo-viewer-carousel">
-          {frames.map((frame, idx) => (
-            <button
-              type="button"
-              key={frame.id}
-              className={`promo-viewer-thumb${idx === activeFrameIndex ? " is-active" : ""}`}
-              onClick={() => setActiveFrameIndex(idx)}
-            >
-              <img src={frame.imageDataUrl} alt="" />
-              <span className="promo-viewer-thumb-num">{idx + 1}</span>
-            </button>
-          ))}
+        <div className="promo-viewer-bottom-left">
+          <div className="promo-viewer-carousel">
+            {frames.map((frame, idx) => (
+              <button
+                type="button"
+                key={frame.id}
+                className={`promo-viewer-thumb${idx === activeFrameIndex ? " is-active" : ""}`}
+                onClick={() => setActiveFrameIndex(idx)}
+              >
+                <img src={frame.imageDataUrl} alt="" />
+                <span className="promo-viewer-thumb-num">{idx + 1}</span>
+              </button>
+            ))}
+          </div>
+
+          {manifest.relatedTokens && manifest.relatedTokens.length > 0 && (
+            <div className="promo-viewer-lookbook">
+              <span className="promo-viewer-lookbook-title">Похожие проекты:</span>
+              <div className="promo-viewer-lookbook-tokens">
+                {manifest.relatedTokens.map((relToken, idx) => (
+                  <a
+                    key={relToken}
+                    href={`/v/${encodeURIComponent(relToken)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="promo-viewer-lookbook-link"
+                    title={`Открыть связанный проект ${relToken}`}
+                  >
+                    Проект #{idx + 1}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Кнопка "Загрузить 3D модель" On-Demand */}

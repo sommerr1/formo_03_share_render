@@ -80,14 +80,16 @@ export function ViewerPage() {
         objectUrl = URL.createObjectURL(blob);
 
         let overlay: ShareOverlayV1 | null = null;
-        const overlayRes = await fetch(
-          `/api/models/${encodeURIComponent(token)}/overlay`,
-        );
-        if (overlayRes.ok) {
-          try {
-            overlay = parseShareOverlay(await overlayRes.json());
-          } catch {
-            overlay = null;
+        if (metaBody.shareMode !== "promo" || metaBody.allow3D !== false) {
+          const overlayRes = await fetch(
+            `/api/models/${encodeURIComponent(token)}/overlay`,
+          );
+          if (overlayRes.ok) {
+            try {
+              overlay = parseShareOverlay(await overlayRes.json());
+            } catch {
+              overlay = null;
+            }
           }
         }
 

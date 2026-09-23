@@ -8,6 +8,7 @@ export type RenderMeta = {
   /** Studio background `#RRGGBB` when no photo backdrop. */
   bgColor?: string;
   shareMode?: "survey" | "promo";
+  promoContentScope?: "both" | "gallery_only" | "model_only";
   promoManifest?: unknown;
   surveyEnabled?: boolean;
   facadesEnabled?: boolean;

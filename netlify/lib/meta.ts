@@ -38,6 +38,13 @@ export function applyMetaScalars(from: Partial<RenderMeta>, to: RenderMeta): voi
   if (from.shareMode === "survey" || from.shareMode === "promo") {
     to.shareMode = from.shareMode;
   }
+  if (
+    from.promoContentScope === "both" ||
+    from.promoContentScope === "gallery_only" ||
+    from.promoContentScope === "model_only"
+  ) {
+    to.promoContentScope = from.promoContentScope;
+  }
   if (from.promoManifest !== undefined) {
     to.promoManifest = from.promoManifest;
   }

@@ -637,6 +637,17 @@ code {
   justify-content: center;
   background: #020617;
   overflow: hidden;
+  touch-action: none;
+}
+
+.promo-viewer-frame-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  will-change: transform;
 }
 
 .promo-viewer-bg-photo {
@@ -713,6 +724,7 @@ code {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1.25rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   background: rgba(15, 23, 42, 0.95);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 4;
@@ -768,9 +780,15 @@ code {
 .promo-viewer-carousel {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.6rem;
-  overflow-x: auto;
-  padding-bottom: 0.2rem;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.promo-viewer-carousel::-webkit-scrollbar {
+  display: none;
 }
 
 .promo-viewer-thumb {
@@ -808,6 +826,27 @@ code {
   border-radius: 2px;
 }
 
+.promo-viewer-download-fab {
+  position: fixed;
+  right: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  background: rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.promo-viewer-download-fab:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .promo-viewer-3d-btn {
   background: #3b82f6;
   color: #fff;
@@ -819,6 +858,7 @@ code {
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
+  margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .promo-viewer-3d-btn:hover {

@@ -68,6 +68,7 @@ export default async (req: Request, context: Context) => {
     const hasBgColor = "bgColor" in rec;
     const hasShareMode = "shareMode" in rec;
     const hasPromoManifest = "promoManifest" in rec;
+    const hasPromoContentScope = "promoContentScope" in rec;
     const toolPatch: Partial<RenderMeta> = {};
     for (const key of VIEWER_TOOL_META_KEYS) {
       if (!(key in rec)) continue;
@@ -100,7 +101,8 @@ export default async (req: Request, context: Context) => {
       !adminMerged.touched &&
       !hasBgColor &&
       !hasShareMode &&
-      !hasPromoManifest
+      !hasPromoManifest &&
+      !hasPromoContentScope
     ) {
       return json({ error: "expiresAt, tool flags or admin fields required" }, 400);
     }
@@ -134,7 +136,28 @@ export default async (req: Request, context: Context) => {
     if (hasPromoManifest) {
       next.promoManifest = rec.promoManifest;
     }
-    if (hasExpiry || Object.keys(toolPatch).length > 0 || hasBgColor || hasShareMode || hasPromoManifest) {
+    if (hasPromoContentScope) {
+      const scope = rec.promoContentScope;
+      if (
+        scope === "both" ||
+        scope === "gallery_only" ||
+        scope === "model_only"
+      ) {
+        next.promoContentScope = scope;
+      } else if (scope === null) {
+        delete next.promoContentScope;
+      } else {
+        return json({ error: "Invalid promoContentScope" }, 400);
+      }
+    }
+    if (
+      hasExpiry ||
+      Object.keys(toolPatch).length > 0 ||
+      hasBgColor ||
+      hasShareMode ||
+      hasPromoManifest ||
+      hasPromoContentScope
+    ) {
       await patchRenderMeta(token, next);
     }
     if (adminMerged.touched) {

@@ -1,44 +1,13 @@
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { downloadShareGlb } from "../viewer/downloadGlb.js";
-import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
-import { parsePromoManifest, type PromoManifest } from "../viewer/promoManifest.js";
-import { PromoViewerUI } from "../viewer/PromoViewerUI.js";
-import { GlbViewer } from "../viewer/GlbViewer.js";
-import {
-  resolveShareBgColor,
-  resolveShareViewerTools,
-  type ShareViewerTools,
-} from "../viewer/viewerTools.js";
-import { trackShareVisit } from "../viewer/trackVisit.js";
-import { NotFoundPage } from "./NotFoundPage.js";
-
-type LoadState =
-  | { kind: "loading" }
-  | { kind: "notFound" }
-  | { kind: "error"; message: string }
-  | {
-      kind: "promo";
-      manifest: PromoManifest;
-      tools: ShareViewerTools;
-      token: string;
-      metaBody: Record<string, unknown>;
-    }
-  | {
-      kind: "ready";
-      url: string;
-      overlay: ShareOverlayV1 | null;
-      tools: ShareViewerTools;
-      token: string;
-      bgColor: string;
-    };
-
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { downloadShareGlb } from "../viewer/downloadGlb.js";
 import { parseShareOverlay, type ShareOverlayV1 } from "../viewer/overlayTypes.js";
 import { parsePromoManifest, type PromoManifest } from "../viewer/promoManifest.js";
 import { PromoViewerUI } from "../viewer/PromoViewerUI.js";
+import {
+  parsePromoContentScope,
+  promoShowModelActions,
+} from "../viewer/promoActions.js";
 import { GlbViewer } from "../viewer/GlbViewer.js";
 import {
   resolveShareBgColor,
@@ -84,8 +53,9 @@ export function ViewerPage() {
 
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [loadHint, setLoadHint] = useState("Загрузка страницы…");
+  const [promoDownloadBusy, setPromoDownloadBusy] = useState(false);
 
-  const load3dModel = async (metaBody: Record<string, unknown>, currentToken: string) => {
+  const load3dModel = useCallback(async (metaBody: Record<string, unknown>, currentToken: string) => {
     addLog("load3dModel called", { token: currentToken });
     setLoadHint("Загрузка 3D модели…");
     setState({ kind: "loading" });
@@ -124,7 +94,30 @@ export function ViewerPage() {
         message: `Не удалось загрузить 3D модель: ${raw}`,
       });
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- addLog is debug-only
+  }, []);
+
+  const downloadPromoGlb = useCallback(
+    async (metaBody: Record<string, unknown>, currentToken: string) => {
+      if (promoDownloadBusy) return;
+      setPromoDownloadBusy(true);
+      try {
+        const blob = await downloadShareGlb(currentToken, metaBody);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "formo-model.glb";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        addLog("Promo GLB download error", err instanceof Error ? err.message : String(err));
+      } finally {
+        setPromoDownloadBusy(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addLog is debug-only
+    [promoDownloadBusy],
+  );
 
   useEffect(() => {
     addLog("ViewerPage mounted/updated", { token, isDebugLog });
@@ -178,9 +171,20 @@ export function ViewerPage() {
           allow3D: promoManifest.allow3D,
         });
 
-        // 1) Режим Промо: загрузка сразу Галереи (3D загружается только по клику на кнопку)
+        // 1) Режим Промо: галерея; 3D — по клику (или сразу для model_only)
         if (shareMode === "promo") {
-          addLog("Entering PROMO mode state");
+          const scope = parsePromoContentScope(metaBody);
+          const framesCount = promoManifest.frames?.length ?? 0;
+          addLog("Entering PROMO mode state", { scope, framesCount });
+
+          if (scope === "model_only" || (scope === undefined && framesCount === 0)) {
+            addLog("Promo model_only / no frames -> load 3D");
+            if (!revoked) {
+              await load3dModel(metaBody, token);
+            }
+            return;
+          }
+
           if (!revoked) {
             setState({
               kind: "promo",
@@ -261,6 +265,7 @@ export function ViewerPage() {
     return () => {
       revoked = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per token
   }, [token]);
 
   useEffect(() => {
@@ -280,14 +285,25 @@ export function ViewerPage() {
             <p>{state.message}</p>
           </div>
         );
-      case "promo":
+      case "promo": {
+        const scope = parsePromoContentScope(state.metaBody);
+        const showModel = promoShowModelActions({
+          scope,
+          framesCount: state.manifest.frames.length,
+          allow3D: state.manifest.allow3D,
+          meta: state.metaBody,
+        });
         return (
           <PromoViewerUI
             manifest={state.manifest}
-            allow3D={state.manifest.allow3D}
+            showLoad3D={showModel}
+            showDownload={showModel && state.tools.glbAr}
+            downloadBusy={promoDownloadBusy}
             onLoad3D={() => load3dModel(state.metaBody, state.token)}
+            onDownloadGlb={() => downloadPromoGlb(state.metaBody, state.token)}
           />
         );
+      }
       case "ready":
         return (
           <Suspense fallback={<p className="status">Подготовка сцены…</p>}>
@@ -301,7 +317,7 @@ export function ViewerPage() {
           </Suspense>
         );
     }
-  }, [state, loadHint]);
+  }, [state, loadHint, load3dModel, downloadPromoGlb, promoDownloadBusy]);
 
   if (state.kind === "notFound") return <NotFoundPage />;
 

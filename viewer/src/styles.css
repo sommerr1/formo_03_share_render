@@ -828,7 +828,8 @@ code {
 
 .promo-viewer-download-fab {
   position: fixed;
-  right: 12px;
+  left: 12px;
+  right: auto;
   bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   z-index: 6;
   background: rgba(15, 23, 42, 0.92);
@@ -859,6 +860,9 @@ code {
   white-space: nowrap;
   transition: background 0.15s;
   margin-bottom: env(safe-area-inset-bottom, 0px);
+  /* Netlify “Powered by” badge (~bottom-right) */
+  margin-right: 132px;
+  flex-shrink: 0;
 }
 
 .promo-viewer-3d-btn:hover {

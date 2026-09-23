@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { AnnotateOp } from "./surveyDraft.js";
+import { compositeShareDimLabels } from "./compositeShareDimLabels.js";
 
 export type AnnotateTool = "pen" | "text" | "erase";
 
@@ -320,6 +321,7 @@ export async function exportAnnotateJpeg(
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, dw, dh);
   ctx.drawImage(glCanvas, 0, 0, dw, dh);
+  compositeShareDimLabels(ctx, glCanvas, dw, dh);
   ctx.drawImage(overlay, 0, 0, dw, dh);
   const qualities = [0.72, 0.55, 0.4];
   for (const q of qualities) {
